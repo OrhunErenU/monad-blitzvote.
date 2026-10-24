@@ -1,0 +1,7 @@
+{
+  "address": "0x0000000000000000000000000000000000000000",
+  "chainId": 10143,
+  "rpcUrl": "https://testnet-rpc.monad.xyz",
+  "deployBlock": 0,
+  "eventName": "Monad Blitz Ankara"
+}

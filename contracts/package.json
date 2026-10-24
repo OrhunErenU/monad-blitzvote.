@@ -1,0 +1,33 @@
+{
+  "name": "blitzvote-contracts",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "node": "hardhat node",
+    "deploy:local": "hardhat run scripts/deploy.ts --network localhost",
+    "deploy": "hardhat run scripts/deploy.ts --network monadTestnet",
+    "projects": "hardhat run scripts/add-projects.ts --network monadTestnet",
+    "voters": "hardhat run scripts/make-voters.ts --network monadTestnet",
+    "open": "hardhat run scripts/phase.ts --network monadTestnet",
+    "close": "hardhat run scripts/phase.ts --network monadTestnet",
+    "status": "hardhat run scripts/status.ts --network monadTestnet",
+    "simulate": "hardhat run scripts/simulate.ts --network monadTestnet"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@types/node": "^26.6.5",
+    "@types/qrcode": "^1.5.6",
+    "dotenv": "^18.0.9",
+    "hardhat": "^2.29.1",
+    "qrcode": "^1.5.4",
+    "solc": "^0.8.28",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.6.3"
+  },
+  "private": true
+}
