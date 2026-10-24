@@ -21,6 +21,7 @@ export const SOLO_WORDS = 15;
 const START_GAS_CEIL = 200_000n;
 const WORD_GAS_CEIL = 160_000n;
 const LAST_GAS_CEIL = 600_000n; // personal best can shift the on-chain top 10
+const FALLBACK_WORD_GAS = 80_000n; // ~53k measured on Monad testnet, ×1.3 ≈ 69k
 const RESUME_BLOCKS = 1500n; // ~10 min: older unfinished runs are not resumed
 
 const pad = (est: bigint, ceil: bigint, extra = 0n) => {
@@ -55,9 +56,10 @@ export default function Solo({
   const [top, setTop] = useState<SoloEntry[]>([]);
   const [done, setDone] = useState<Done | null>(null);
   const [latency, setLatency] = useState<{ secs: number; block: bigint; hash: string } | null>(null);
-  const t0 = useRef(0); // local clock when the words appeared
+  const t0 = useRef(0); // local clock when the words appeared (0 = resumed run, no local timing)
   const tTyped = useRef(0); // local clock when the last word was typed
-  const wordGas = useRef<bigint | null>(null);
+  // one shared estimate for the run: later words must not estimate while earlier ones are unconfirmed
+  const wordGas = useRef<Promise<bigint> | null>(null);
   const pending = useRef<Promise<unknown>[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -81,7 +83,7 @@ export default function Solo({
         setWords(soloWords(s.seed, SOLO_POOL, SOLO_WORDS));
         setIdx(s.done);
         setConfirmed(s.done);
-        t0.current = performance.now();
+        t0.current = 0;
         setPhase("live");
       }
     });
@@ -131,10 +133,12 @@ export default function Solo({
         gas = pad(est, LAST_GAS_CEIL, 10_000n);
       } else {
         if (wordGas.current === null) {
-          const est = await publicClient.estimateContractGas({ ...contract, functionName: "typeSolo", args: [word], account: address });
-          wordGas.current = pad(est, WORD_GAS_CEIL);
+          wordGas.current = publicClient
+            .estimateContractGas({ ...contract, functionName: "typeSolo", args: [word], account: address })
+            .then((est) => pad(est, WORD_GAS_CEIL))
+            .catch(() => FALLBACK_WORD_GAS);
         }
-        gas = wordGas.current;
+        gas = await wordGas.current;
       }
       const t = performance.now();
       const { receipt } = await burner.sendAndConfirm(encodeSoloWord(word), gas);
@@ -143,7 +147,7 @@ export default function Solo({
       setLatency({ secs: (performance.now() - t) / 1000, block: receipt.blockNumber, hash: receipt.transactionHash });
       const fin = parseEventLogs({ abi: blitzTypeAbi, logs: receipt.logs, eventName: "SoloFinished" })[0];
       if (fin) {
-        const secs = (tTyped.current - t0.current) / 1000;
+        const secs = t0.current ? (tTyped.current - t0.current) / 1000 : 0;
         const chars = words.reduce((n, w) => n + w.length, 0) + words.length - 1;
         setDone({
           blocks: Number(fin.args.blocksTaken),
@@ -156,7 +160,6 @@ export default function Solo({
       }
     } catch (e) {
       onErr(shortErr(e));
-      wordGas.current = null;
       try {
         const s = await readSolo(address);
         setIdx(s.done);
@@ -195,7 +198,7 @@ export default function Solo({
   const target = words[idx] ?? "";
   const typed = input.trim();
   const wrongAt = [...typed].findIndex((ch, i) => target[i] !== ch);
-  const elapsed = phase === "live" ? Math.floor((performance.now() - t0.current) / 1000) : 0;
+  const elapsed = phase === "live" && t0.current ? Math.floor((performance.now() - t0.current) / 1000) : 0;
 
   return (
     <>
@@ -262,10 +265,12 @@ export default function Solo({
           <div className="result">
             <span className="kicker">{done.pb ? "Yeni kişisel rekor" : "Bitti"}</span>
             <div className="pos">{done.blocks}</div>
-            <h1 className="headline">
-              blok · ≈{((done.blocks * ms) / 1000).toFixed(1)} sn{done.wpm ? ` · ${done.wpm} WPM` : ""}
-            </h1>
-            <p className="lede">Skor zincirde: {SOLO_WORDS} kelimenin hepsi kontrat tarafından doğrulandı.</p>
+            <h1 className="headline">blok</h1>
+            <p className="lede">
+              <b>≈{((done.blocks * ms) / 1000).toFixed(1)} sn</b>
+              {done.wpm ? <> · <b>{done.wpm} WPM</b> (telefon saatiyle)</> : null}. Skor zincirde: {SOLO_WORDS} kelimenin hepsini kontrat
+              doğruladı.
+            </p>
             <button className="btn" onClick={start}>
               Tekrar dene
             </button>

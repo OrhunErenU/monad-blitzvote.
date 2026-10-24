@@ -19,11 +19,17 @@ Gönderim, Monad'ın şehir reposunun (örn. `monad-developers/monad-blitz-<şeh
 
 ⚠️ **10 MON rezerv kuralı:** Bakiyen 10 MON'un altındaysa, MON gönderen işlem ancak son 3 blokta başka işlem atmadıysan geçer. `npm run cards` bunu otomatik bekleyerek hallediyor. En rahatı: cüzdanda 10 MON + kart bütçesi.
 
+## Deploy durumu (24 Eki, tamam)
+- Kontrat: `0x7D75427Db842a177599dEBEC6DFc8b853DE9F310` (Monad testnet, Sourcify "perfect")
+- Uygulama: https://orhunerenu.github.io/monad-blitzvote./ (adres build'e gömülü, `?c=` gerekmez)
+- Organizatör cüzdanı = deploy eden cüzdan. Panelde kullanmak için: `…/#/admin/<o cüzdanın anahtarı>` (anahtar URL'den hemen silinir)
+- İki mod: **Salon yarışı** (organizatör turu başlatır) ve **Bireysel test** (telefonda sekme; kartsız `…/#/solo`)
+
 ## En hızlı yol: telefondan organizatör paneli
 1. **(Tek seferlik)** GitHub → repo → **Settings → Pages → Source: GitHub Actions**. Ardından Actions sekmesinde "Deploy app to GitHub Pages" workflow'unu çalıştır (ya da bir push bekle). Uygulama adresi: `https://orhunerenu.github.io/monad-blitzvote./`
 2. Telefondan `…/#/admin` → **Cüzdan oluştur** → gösterilen adrese faucet / blitz.devnads.com'dan MON gönder. Anahtarı **yedekle** (gerekirse başka cihaza `#/admin/<anahtar>` ile taşınır).
 3. **BlitzType'ı deploy et** → kontrat adresi panelde. Bunu teslim formuna ve README'ye yaz.
-4. **Kartlar**: kişi / tur / kelime → *Kartları üret, fonla, yazdır*. Yazdırma sayfası açılır.
+4. **Kartlar**: kişi / tur / kelime / bireysel → *Kartları üret, fonla, yazdır*. Yazdırma sayfası açılır. "Bireysel" kart başı kaç bireysel test hakkı fonlanacağı (tur başı ~0,13 MON).
 5. Projektör: paneldeki *Projektör ekranını aç* (ya da kopyalanan link) → **F**.
 6. Sahnede: **Turu başlat**. Salon az ise **Botları yarıştır**. Bitince podyum projektörde.
 

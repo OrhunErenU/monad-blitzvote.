@@ -5,8 +5,9 @@ Kural: 90 sn, canlı, slayt yok. Puan: Execution %24 · On-chain/Monad fit %20 �
 ## Sahneden önce
 - [ ] Projektör: `URL/#/screen`, **F** ile tam ekran
 - [ ] Salonda kartlar dağıtıldı, insanlar isimlerini girdi (öğle arası ideal)
-- [ ] Terminalde iki komut hazır, sadece Enter: `npm run round` ve `npm run simulate`
-- [ ] `npm run rehearse` sonuçlarını [köşeli] yerlere yaz
+- [ ] Organizatör paneli (`URL/#/admin`) açık: **Turu başlat** ve **Botları yarıştır** butonları hazır
+- [ ] Projektör tur yokken bireysel rekor tablosunu gösteriyor; öncesinde salona "Bireysel test"i oynat ki tablo dolsun
+- Ölçülen değerler (testnet, 24 Eki): kelime başı ~53k gas tahmini, ~0,4 sn'de blokta; temiz bir bireysel tur 15 kelime = 25 blok ≈ 7,5 sn
 
 ---
 
@@ -22,8 +23,11 @@ Kural: 90 sn, canlı, slayt yok. Puan: Execution %24 · On-chain/Monad fit %20 �
 
 *(Salon az ise: Enter → `npm run simulate`, 20 bot katılır.)*
 
-**[45–70 sn] Neden zincir, neden Monad?**
-> "Yazdığınız kelime kontrata gidiyor ve kontrat hash'iyle karşılaştırıyor. Kelime atlayamazsınız, sahte ilerleme gösteremezsiniz; bitiş sırası konsensüsle kesinleşiyor. Bunu 12 saniyelik bloklu bir zincirde yapsaydık bütün yarış 4 bloğa sığardı. Monad'da her kelime ~[0.3] saniyede blokta: Monad'ın `eth_sendRawTransactionSync` metodu her kelimeyi tek istekte onaylıyor. Paralel yürütmede çakışma olmasın diye her oyuncu sadece kendi storage slot'una yazıyor."
+**[45–55 sn] İkinci mod: bireysel test**
+> "Tur yokken herkes kendi başına oynuyor: Monkeytype gibi 15 kelime, ama kelimeleri kontrat seçiyor, süreyi blok sayısı tutuyor. Rekorlar ve ilk 10 zincirde; projektördeki tablo o."
+
+**[55–70 sn] Neden zincir, neden Monad?**
+> "Yazdığınız kelime kontrata gidiyor ve kontrat hash'iyle karşılaştırıyor. Kelime atlayamazsınız, sahte ilerleme gösteremezsiniz; bitiş sırası konsensüsle kesinleşiyor. Bunu 12 saniyelik bloklu bir zincirde yapsaydık bütün yarış 4 bloğa sığardı. Monad'da her kelime ~0,4 saniyede blokta: Monad'ın `eth_sendRawTransactionSync` metodu her kelimeyi tek istekte onaylıyor. Paralel yürütmede çakışma olmasın diye her oyuncu sadece kendi storage slot'una yazıyor."
 
 **[70–90 sn] Podyum + dürüst kapanış**
 > *(Podyum görünür.)* "Kazanan [isim], [X] blokta. Daha önce TypeStrike 1v1 düelloyu WebRTC'de yapıp zinciri bahis için kullanmıştı. Biz oyunun kendisini zincire koyduk, bütün salon için. Bitmeyen: bu bir botun insan olmadığını kanıtlamıyor; kanıtladığı şey sıranın ve doğruluğun hilesiz olması. Teşekkürler!"
@@ -33,7 +37,8 @@ Kural: 90 sn, canlı, slayt yok. Puan: Execution %24 · On-chain/Monad fit %20 �
 ## English version
 > "Scan the card in your hand. In ten seconds we all race. Every correct word you type is a Monad transaction.
 > *[round starts]* Type the word on your phone. Each bar behind me is one Monad block and the words confirmed in it. Right now this room is pushing [N] transactions per second, and the chain, not a server, decides who's ahead.
-> Each word goes to the contract, which checks it against a hash. You can't skip a word or fake progress, and finish order is settled by consensus. On a 12-second chain this whole race would fit in four blocks. On Monad each word lands in about [0.3] seconds, confirmed in a single call with `eth_sendRawTransactionSync`. Every player writes only their own storage slot, so parallel execution never conflicts.
+> Each word goes to the contract, which checks it against a hash. You can't skip a word or fake progress, and finish order is settled by consensus. On a 12-second chain this whole race would fit in four blocks. On Monad each word lands in about 0.4 seconds, confirmed in a single call with `eth_sendRawTransactionSync`. Every player writes only their own storage slot, so parallel execution never conflicts.
+> When there's no round, everyone can run a solo test: 15 words, Monkeytype-style, but the contract picks the words and the block count is the clock. Personal bests and the top ten live on-chain.
 > *[podium]* [Name] wins in [X] blocks. TypeStrike did a 1v1 duel over WebRTC with the chain as escrow. We put the game itself on-chain, for the whole room. What it doesn't prove: that you're human. What it does prove: order and correctness can't be faked. Thanks!"
 
 ---
@@ -45,6 +50,8 @@ Kural: 90 sn, canlı, slayt yok. Puan: Execution %24 · On-chain/Monad fit %20 �
 
 **"Aynı bloktaki iki kişiden kim önde?"** Bloktaki işlem sırası; onu da blok lideri belirliyor. Bunu açıkça söylüyoruz.
 
-**"Gas kimin?"** Organizatör tek işlemle kartlara dağıtıyor (`fund`). Kelime başı gas [rehearse sonucu], kart başı [X] MON.
+**"Gas kimin?"** Organizatör tek işlemle kartlara dağıtıyor (`fund`). Kelime başı ~53k gas (Monad limiti ücretlendirdiği için ×1,3 ile ~69k gönderiyoruz), 15 kelimelik bireysel tur ~0,13 MON.
+
+**"Bireysel modda kelimeleri önceden bilip hile yapılamaz mı?"** Kelimeler `startSolo` işleminin bloğundaki blockhash/prevrandao ile seçiliyor ve ancak bir sonraki bloktan itibaren kabul ediliyor. Blok üreticisi etkileyebilir; ödül için değil oyun için yeterli, bunu README'de yazıyoruz.
 
 **"Neden her kelime ayrı işlem?"** Sıranın ve doğruluğun zincirde kesinleşmesi için. Bu aynı zamanda Monad'ın saniyede bu kadar işlemi kaldırdığının canlı gösterimi.

@@ -47,7 +47,7 @@ export default function Play({ pk, initialMode = "race" }: { pk: Hex; initialMod
   const [savingName, setSavingName] = useState(false);
   const [balance, setBalance] = useState<bigint | null>(null);
   const [, setTick] = useState(0);
-  const wordGas = useRef<bigint | null>(null);
+  const wordGas = useRef<Promise<bigint> | null>(null); // shared: never estimate while earlier words are unconfirmed
   const inflight = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -66,6 +66,7 @@ export default function Play({ pk, initialMode = "race" }: { pk: Hex; initialMod
         setConfirmed(s.myProgress);
         setResult(null);
         setLatency(null);
+        wordGas.current = null;
         setInput("");
       } else if (inflight.current === 0) {
         setConfirmed(s.myProgress);
@@ -131,10 +132,13 @@ export default function Play({ pk, initialMode = "race" }: { pk: Hex; initialMod
     try {
       if (wordGas.current === null) {
         // estimate only works with nothing pending; the first word is the most expensive non-final write
-        const est = await publicClient.estimateContractGas({ ...contract, functionName: "typeWord", args: [word], account: address });
-        wordGas.current = pad(est, WORD_GAS_CEIL);
+        wordGas.current = publicClient
+          .estimateContractGas({ ...contract, functionName: "typeWord", args: [word], account: address })
+          .then((est) => pad(est, WORD_GAS_CEIL))
+          .catch(() => 90_000n);
       }
-      const gas = isLast ? (wordGas.current + 90_000n > WORD_GAS_CEIL ? WORD_GAS_CEIL : wordGas.current + 90_000n) : wordGas.current;
+      const base = await wordGas.current;
+      const gas = isLast ? (base + 90_000n > WORD_GAS_CEIL ? WORD_GAS_CEIL : base + 90_000n) : base;
       const t0 = performance.now();
       const { receipt, viaSync } = await burner.sendAndConfirm(encodeWord(word), gas);
       if (receipt.status !== "success") throw new Error("İşlem geri döndü (gas yetmedi mi?)");
@@ -144,7 +148,6 @@ export default function Play({ pk, initialMode = "race" }: { pk: Hex; initialMod
       if (fin) setResult({ rank: Number(fin.args.rank), blocks: Number(fin.args.blocksTaken) });
     } catch (e) {
       setErr(shortErr(e));
-      wordGas.current = null;
       try {
         const s = await readState(address);
         setIdx(s.myProgress);
