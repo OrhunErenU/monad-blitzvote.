@@ -1,77 +1,58 @@
-# Etkinlik günü akışı (Monad Blitz Ankara v4)
+# Etkinlik günü akışı — BlitzType (Monad Blitz Ankara v4)
 
-**Teslim son saati: 16:30, [blitz.devnads.com](https://blitz.devnads.com)** — repo linki + canlı demo linki + kontrat adresi.
+**Teslim son saati: 16:30, [blitz.devnads.com](https://blitz.devnads.com)**. Repo linki, canlı demo linki ve kontrat adresi gerekiyor.
+Gönderim, Monad'ın şehir reposunun (örn. `monad-developers/monad-blitz-<şehir>`) fork'lanmasıyla yapılıyor olabilir. Organizatöre sor; gerekirse kodu o fork'a taşırız.
 
-## Uygunluk kontrol listesi (sunumdaki kurallar)
-- [ ] Repo **public**, README var (README.md İngilizce, jüri için)
-- [ ] Kontrat **bugün** Monad testnet'e deploy edildi (prova deploy'u da bugün sayılır, ama asıl adresi teslim et)
+## Uygunluk kontrol listesi
+- [ ] Repo **public**, README İngilizce ve güncel (adres ve canlı link satırları dolu)
+- [ ] Kontrat **bugün** Monad testnet'e deploy edildi ve doğrulandı
 - [ ] Uygulama **web'de canlı** (Vercel). Localhost diskalifiye
-- [ ] 90 saniyelik canlı demo hazır (PITCH.md)
+- [ ] 90 saniyelik demo provası yapıldı (PITCH.md)
 
-## Ağ bilgileri (docs.monad.xyz/developer-essentials/testnet)
+## Ağ
 | | |
 |---|---|
 | Chain ID | 10143 |
-| RPC | `https://testnet-rpc.monad.xyz` (50 rps, eth_call 25 rps) · `https://rpc.ankr.com/monad_testnet` · `https://rpc-testnet.monadinfra.com` (20 rps) |
+| RPC | `https://testnet-rpc.monad.xyz` (50 rps, eth_call 25 rps) · `https://rpc.ankr.com/monad_testnet` · `https://rpc-testnet.monadinfra.com` |
 | Explorer | testnet.monadvision.com · testnet.monadscan.com |
 | MON | blitz.devnads.com (Tokens) · faucet.monad.xyz · devnads.com/agents (1 MON/istek, günde 10) |
 
-⚠️ **10 MON rezerv kuralı:** Bakiyen 10 MON'un altındaysa (ya da işlem seni 10'un altına düşürecekse), value içeren işlem ancak son 3 blokta başka işlem atmadıysan geçer. `npm run voters` her fonlama tx'inden önce 2,5 sn bekleyerek bunu otomatik yapıyor. Yine de **organizatör cüzdanında 10 MON + kart bütçesi** olması en rahatı.
+⚠️ **10 MON rezerv kuralı:** Bakiyen 10 MON'un altındaysa, MON gönderen işlem ancak son 3 blokta başka işlem atmadıysan geçer. `npm run cards` bunu otomatik bekleyerek hallediyor. En rahatı: cüzdanda 10 MON + kart bütçesi.
 
 ## Sıra
 
-### 1. Kurulum (5 dk)
+**1. Kurulum**
 ```bash
-git clone <repo> && cd <repo>/contracts
-npm install
-cp .env.example .env     # PRIVATE_KEY yaz
+git clone <repo> && cd <repo>/contracts && npm install
+cp .env.example .env      # PRIVATE_KEY
 npm test
 ```
 
-### 2. Prova (1 dk, ~0,2 MON): gerçek gas'ı ölç
+**2. Prova (~0,2 MON):** `npm run rehearse` → çıktıdaki `WORD_GAS / NAME_GAS / FINISH_GAS` değerlerini `.env`'e yaz.
+
+**3. Deploy + doğrulama:** `npm run deploy` → `app/src/deployment.json` commit + push. Sonra `npm run verify`. README'ye adresi yaz.
+
+**4. Frontend:** Vercel → Add New Project → repo → **Root Directory `app`**. URL'yi `.env` → `APP_URL` ve README'ye yaz.
+
+**5. Kartlar:** `.env`'de `PLAYERS`, `ROUNDS`, `WORDS` ayarla.
 ```bash
-npm run rehearse
+DRY_RUN=1 npm run cards   # maliyete bak
+npm run cards             # out/cards-*.html → yazdır, kes
 ```
-Çıktıdaki `VOTE_GAS=` / `REACT_GAS=` satırlarını `.env`'e yaz. `sync onay: VAR ✓` görmen lazım. Görmezsen de çalışır, sadece polling'e düşer.
+Ayrıca 20 bot kartı üret: `PLAYERS=20 npm run cards`. Simülasyon en son kart dosyasını kullanır, bu yüzden bot kartlarını **en son** üret. İnsan kartlarını ayrı sakla.
 
-### 3. Asıl deploy + doğrulama
-```bash
-npm run deploy           # app/src/deployment.json yazılır → commit + push
-npm run verify           # MonadVision'da kodu doğrular
-```
-README'deki "Contract address" satırına adresi yaz.
+**6. Prova turu:** Telefonundan bir kartla gir, isim yaz. `WORDS=8 npm run round`, ardından `npm run simulate`. Projektörde `URL/#/screen` → **F**.
 
-### 4. Frontend → Vercel
-Vercel → Add New Project → repo → **Root Directory: `app`**. Push'ta otomatik deploy.
-Çıkan URL'yi `.env` → `APP_URL=` ve README'deki "Live demo" satırına yaz.
-Telefondan `URL/#/screen` ve `URL` açılıyor mu, kontrol et.
+**7. Demo:**
+- Kartları demodan önce dağıt (organizatörden izin al)
+- Sahnede: `npm run round` (varsayılan 15 kelime, 45 sn, 5 sn geri sayım) + istersen `BOTS=20 npm run simulate`
+- Bitince projektör podyumu gösterir; `npm run leaderboard` terminalden
 
-### 5. Projeler
-`projects.json`'a organizatörlerden aldığın **tam listeyi** yaz (`members` = takım kişi sayısı), sonra:
-```bash
-npm run projects
-```
-⚠️ Oylama açıldıktan sonra proje eklenemez. Geç gelen takım varsa oylamayı açmadan önce ekle.
-
-### 6. Kartlar
-```bash
-DRY_RUN=1 npm run voters     # maliyete bak
-npm run voters               # out/qr-*.html → yazdır, kes, dağıt
-```
-- Takım kartları koyu kenarlı ve takım adı yazıyor. Doğru takıma ver.
-- Geç gelenler: `.env`'de `TEAM_QR=0`, `AUDIENCE=10` → `npm run voters` (oylama açıkken de olur)
-- **Kartları demolardan önce dağıt** (öğle arası ideal). Organizatörlerden izin al.
-
-### 7. Demolar
-- Projektör/laptop: `URL/#/screen` → **F** tam ekran
-- Her demoda **→** ile sahnedeki projeyi seç: alkış ölçer o projeyi parlatır
-- Oylamayı aç: `npm run open` (alkışlar zaten açık)
-- Son demodan sonra: `npm run close` → projektörde **R** (sonuçlar sondan başa)
-
-### Sorun çıkarsa
+## Sorun çıkarsa
 | Belirti | Çözüm |
 |---|---|
-| Telefonda "Ağ şu an yoğun" | RPC limiti; birkaç sn sonra tekrar. Kalıcıysa Vercel'de `VITE_RPC_URLS` ile özel RPC ekle |
-| "Kartın gas bakiyesi bitti" | Yeni kart ver (`AUDIENCE=5 TEAM_QR=0 npm run voters`) |
-| `registerVoters` revert | Bakiye/rezerv: daha fazla MON al ya da `AUDIENCE`/`REACTIONS` düşür |
-| Projektör sayaç artmıyor | Sayfayı yenile; sayaç ekran açıldıktan sonraki işlemleri sayar |
+| Telefonda "Ağ şu an yoğun" | RPC limiti. Mobil veriye geç ya da Vercel'de `VITE_RPC_URLS` ile özel RPC ver |
+| "Kartın gas bakiyesi bitti" | Yeni kart: `PLAYERS=5 npm run cards` |
+| Kelime "zincirdekiyle eşleşmedi" | Uygulama zincirden kaldığı yeri alıp devam eder; yazmaya devam et |
+| "Tur henüz başlamadı" | Geri sayım bitmeden yazıldı; 1 sn bekle |
+| `startRound` revert (RoundLive) | Önceki tur bitmemiş: `END=1 npm run round` |

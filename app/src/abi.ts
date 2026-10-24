@@ -1,5 +1,5 @@
-// Generated from contracts/artifacts — BlitzVote.sol
-export const blitzVoteAbi = [
+// Generated from contracts/artifacts — BlitzType.sol
+export const blitzTypeAbi = [
   {
     "inputs": [
       {
@@ -13,14 +13,24 @@ export const blitzVoteAbi = [
   },
   {
     "inputs": [],
-    "name": "AlreadyVoted",
+    "name": "AlreadyFinished",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BadName",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BadWords",
     "type": "error"
   },
   {
     "inputs": [
       {
         "internalType": "address",
-        "name": "voter",
+        "name": "player",
         "type": "address"
       }
     ],
@@ -34,36 +44,23 @@ export const blitzVoteAbi = [
   },
   {
     "inputs": [],
-    "name": "NotVoter",
+    "name": "NotStarted",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "OwnProject",
+    "name": "RoundLive",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "UnknownProject",
+    "name": "RoundOver",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "WrongPhase",
+    "name": "WrongWord",
     "type": "error"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "enum BlitzVote.Phase",
-        "name": "phase",
-        "type": "uint8"
-      }
-    ],
-    "name": "PhaseChanged",
-    "type": "event"
   },
   {
     "anonymous": false,
@@ -71,97 +68,128 @@ export const blitzVoteAbi = [
       {
         "indexed": true,
         "internalType": "uint256",
-        "name": "projectId",
+        "name": "round",
         "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "player",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "rank",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "blocksTaken",
+        "type": "uint256"
+      }
+    ],
+    "name": "Finished",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "players",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "each",
+        "type": "uint256"
+      }
+    ],
+    "name": "Funded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "player",
+        "type": "address"
       },
       {
         "indexed": false,
         "internalType": "string",
         "name": "name",
         "type": "string"
-      },
-      {
-        "indexed": false,
-        "internalType": "string",
-        "name": "team",
-        "type": "string"
       }
     ],
-    "name": "ProjectAdded",
+    "name": "Named",
     "type": "event"
   },
   {
     "anonymous": false,
     "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "round",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "startBlock",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "endBlock",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "string[]",
+        "name": "words",
+        "type": "string[]"
+      }
+    ],
+    "name": "RoundStarted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "round",
+        "type": "uint256"
+      },
       {
         "indexed": true,
         "internalType": "address",
-        "name": "voter",
+        "name": "player",
         "type": "address"
       },
       {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "projectId",
-        "type": "uint256"
-      },
-      {
         "indexed": false,
-        "internalType": "uint8",
-        "name": "emoji",
-        "type": "uint8"
-      }
-    ],
-    "name": "Reacted",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "voter",
-        "type": "address"
-      },
-      {
-        "indexed": true,
         "internalType": "uint256",
-        "name": "projectId",
+        "name": "wordIndex",
         "type": "uint256"
       }
     ],
-    "name": "Voted",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "count",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "teamProjectId",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "fundingPerVoter",
-        "type": "uint256"
-      }
-    ],
-    "name": "VotersRegistered",
+    "name": "Typed",
     "type": "event"
   },
   {
     "inputs": [],
-    "name": "SHARDS",
+    "name": "MAX_NAME",
     "outputs": [
       {
         "internalType": "uint256",
@@ -173,26 +201,34 @@ export const blitzVoteAbi = [
     "type": "function"
   },
   {
-    "inputs": [
+    "inputs": [],
+    "name": "MAX_WORDS",
+    "outputs": [
       {
-        "internalType": "string[]",
-        "name": "names",
-        "type": "string[]"
-      },
-      {
-        "internalType": "string[]",
-        "name": "teams",
-        "type": "string[]"
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
-    "name": "addProjects",
-    "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [],
-    "name": "closeVoting",
+    "name": "currentRound",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "endRound",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -211,25 +247,95 @@ export const blitzVoteAbi = [
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "getProjects",
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "finisherAt",
     "outputs": [
       {
-        "components": [
-          {
-            "internalType": "string",
-            "name": "name",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "team",
-            "type": "string"
-          }
-        ],
-        "internalType": "struct BlitzVote.Project[]",
+        "internalType": "address",
         "name": "",
-        "type": "tuple[]"
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "finisherCount",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "players",
+        "type": "address[]"
+      }
+    ],
+    "name": "fund",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      }
+    ],
+    "name": "getRound",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "startedAt",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "startBlock",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "endBlock",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint32",
+        "name": "wordCount",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "finishers",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -243,22 +349,15 @@ export const blitzVoteAbi = [
         "type": "address"
       }
     ],
-    "name": "isVoter",
+    "name": "nameOf",
     "outputs": [
       {
-        "internalType": "bool",
+        "internalType": "string",
         "name": "",
-        "type": "bool"
+        "type": "string"
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "openVoting",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -275,107 +374,29 @@ export const blitzVoteAbi = [
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "phase",
-    "outputs": [
-      {
-        "internalType": "enum BlitzVote.Phase",
-        "name": "",
-        "type": "uint8"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "projectCount",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "projectId",
+        "name": "id",
         "type": "uint256"
       },
       {
-        "internalType": "uint8",
-        "name": "emoji",
-        "type": "uint8"
+        "internalType": "uint256",
+        "name": "maxN",
+        "type": "uint256"
       }
     ],
-    "name": "react",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
+    "name": "podium",
+    "outputs": [
       {
         "internalType": "address[]",
-        "name": "voters",
+        "name": "players",
         "type": "address[]"
       },
       {
-        "internalType": "uint256",
-        "name": "teamProjectIdPlusOne",
-        "type": "uint256"
-      }
-    ],
-    "name": "registerVoters",
-    "outputs": [],
-    "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "snapshot",
-    "outputs": [
-      {
-        "internalType": "enum BlitzVote.Phase",
-        "name": "_phase",
-        "type": "uint8"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_voterCount",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_totalVotesCast",
-        "type": "uint256"
-      },
-      {
-        "components": [
-          {
-            "internalType": "string",
-            "name": "name",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "team",
-            "type": "string"
-          }
-        ],
-        "internalType": "struct BlitzVote.Project[]",
-        "name": "projects",
-        "type": "tuple[]"
-      },
-      {
-        "internalType": "uint256[]",
-        "name": "votes",
-        "type": "uint256[]"
+        "internalType": "string[]",
+        "name": "names",
+        "type": "string[]"
       }
     ],
     "stateMutability": "view",
@@ -385,28 +406,20 @@ export const blitzVoteAbi = [
     "inputs": [
       {
         "internalType": "address",
-        "name": "",
+        "name": "player",
         "type": "address"
-      }
-    ],
-    "name": "teamOf",
-    "outputs": [
+      },
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "id",
         "type": "uint256"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "totalVotes",
+    "name": "progressOf",
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "sum",
+        "name": "",
         "type": "uint256"
       }
     ],
@@ -416,12 +429,35 @@ export const blitzVoteAbi = [
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "projectId",
-        "type": "uint256"
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
       }
     ],
-    "name": "vote",
+    "name": "setName",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string[]",
+        "name": "words",
+        "type": "string[]"
+      },
+      {
+        "internalType": "uint64",
+        "name": "delayBlocks",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "durationBlocks",
+        "type": "uint64"
+      }
+    ],
+    "name": "startRound",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -430,28 +466,55 @@ export const blitzVoteAbi = [
     "inputs": [
       {
         "internalType": "address",
-        "name": "",
+        "name": "player",
         "type": "address"
       }
     ],
-    "name": "voteOf",
+    "name": "state",
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "round",
         "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "voterCount",
-    "outputs": [
+      },
+      {
+        "internalType": "uint64",
+        "name": "startedAt",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "startBlock",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "endBlock",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint32",
+        "name": "wordCount",
+        "type": "uint32"
+      },
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "finishers",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "myProgress",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "myName",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "blockNumber",
         "type": "uint256"
       }
     ],
@@ -461,20 +524,14 @@ export const blitzVoteAbi = [
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "projectId",
-        "type": "uint256"
+        "internalType": "string",
+        "name": "word",
+        "type": "string"
       }
     ],
-    "name": "votesFor",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "sum",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
+    "name": "typeWord",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   }
 ] as const;

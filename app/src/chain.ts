@@ -9,7 +9,7 @@ import {
   type TransactionReceipt,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { blitzVoteAbi } from "./abi";
+import { blitzTypeAbi } from "./abi";
 import deployment from "./deployment.json";
 
 const env = import.meta.env;
@@ -38,7 +38,7 @@ const primary = Math.floor(Math.random() * rpcs.length);
 const ordered = [...rpcs.slice(primary), ...rpcs.slice(0, primary)];
 
 export const CONFIG = {
-  address: (env.VITE_BLITZVOTE_ADDRESS || deployment.address) as Address,
+  address: (env.VITE_BLITZTYPE_ADDRESS || deployment.address) as Address,
   chainId,
   rpcs: ordered,
   deployBlock: BigInt(env.VITE_DEPLOY_BLOCK || deployment.deployBlock || 0),
@@ -66,39 +66,52 @@ export const publicClient = createPublicClient({
   batch: { multicall: isMonadTestnet ? { wait: 16 } : false },
 });
 
-export const contract = { address: CONFIG.address, abi: blitzVoteAbi } as const;
+export const contract = { address: CONFIG.address, abi: blitzTypeAbi } as const;
 
-export const PHASES = ["Hazırlık", "Oylama açık", "Oylama kapandı"] as const;
-export type Phase = 0 | 1 | 2;
+// Monad charges the gas LIMIT, not gas used — limits come from an estimate (+30%), capped here.
+// Local: word ≈ 36k (first ≈ 53k, finishing ≈ 83k), setName ≈ 47k. Monad's cold-page pricing adds some.
+export const WORD_GAS_CEIL = 160_000n;
+export const NAME_GAS_CEIL = 160_000n;
 
-export const EMOJIS = ["👏", "🔥", "🚀", "💜"] as const;
-
-// Monad charges the gas LIMIT, not gas used — so every limit comes from an estimate (+30%), capped here.
-// On Monad (MIP-8 pricing) a vote is roughly 95–130k gas and a reaction roughly 40k.
-export const VOTE_GAS_CEIL = 250_000n;
-export const REACT_GAS_CEIL = 80_000n;
-
-export type Project = { name: string; team: string };
-export type Snapshot = {
-  phase: Phase;
-  voterCount: number;
-  totalVotes: number;
-  projects: Project[];
-  votes: number[];
+export type GameState = {
+  round: number;
+  startedAt: bigint;
+  startBlock: bigint;
+  endBlock: bigint;
+  wordCount: number;
+  finishers: number;
+  myProgress: number;
+  myName: string;
+  blockNumber: bigint;
 };
 
-export async function readSnapshot(): Promise<Snapshot> {
-  const [phase, voterCount, total, projects, votes] = await publicClient.readContract({
-    ...contract,
-    functionName: "snapshot",
-  });
+export async function readState(player: Address): Promise<GameState> {
+  const [round, startedAt, startBlock, endBlock, wordCount, finishers, myProgress, myName, blockNumber] =
+    await publicClient.readContract({ ...contract, functionName: "state", args: [player] });
   return {
-    phase: Number(phase) as Phase,
-    voterCount: Number(voterCount),
-    totalVotes: Number(total),
-    projects: projects.map((p) => ({ name: p.name, team: p.team })),
-    votes: votes.map(Number),
+    round: Number(round),
+    startedAt,
+    startBlock,
+    endBlock,
+    wordCount: Number(wordCount),
+    finishers: Number(finishers),
+    myProgress: Number(myProgress),
+    myName,
+    blockNumber,
   };
+}
+
+/** The words of a round come from its RoundStarted event, emitted exactly at `startedAt`. */
+export async function readWords(round: number, startedAt: bigint): Promise<string[]> {
+  const logs = await publicClient.getContractEvents({
+    ...contract,
+    eventName: "RoundStarted",
+    args: { round: BigInt(round) },
+    fromBlock: startedAt,
+    toBlock: startedAt,
+  });
+  const words = logs[0]?.args.words;
+  return words ? [...words] : [];
 }
 
 export async function readEventName(): Promise<string> {
@@ -121,7 +134,7 @@ export async function getFees() {
 
 // ---------------------------------------------------------------- burner
 
-const KEY_STORAGE = `blitzvote:${CONFIG.chainId}:${CONFIG.address.toLowerCase()}:pk`;
+const KEY_STORAGE = `blitztype:${CONFIG.chainId}:${CONFIG.address.toLowerCase()}:pk`;
 
 export function loadKey(): Hex | null {
   try {
@@ -230,9 +243,33 @@ export function makeBurner(pk: Hex) {
 
 export type Burner = ReturnType<typeof makeBurner>;
 
-export const encodeVote = (pid: number) => encodeFunctionData({ abi: blitzVoteAbi, functionName: "vote", args: [BigInt(pid)] });
-export const encodeReact = (pid: number, emoji: number) =>
-  encodeFunctionData({ abi: blitzVoteAbi, functionName: "react", args: [BigInt(pid), emoji] });
+export const encodeWord = (word: string) => encodeFunctionData({ abi: blitzTypeAbi, functionName: "typeWord", args: [word] });
+export const encodeName = (name: string) => encodeFunctionData({ abi: blitzTypeAbi, functionName: "setName", args: [name] });
+
+/** Last ~10 s of observed block heads → ms per block (Monad ≈ 300–400 ms). */
+export function makeBlockClock() {
+  const samples: { n: bigint; t: number }[] = [];
+  return {
+    observe(n: bigint) {
+      const last = samples[samples.length - 1];
+      if (!last || n > last.n) samples.push({ n, t: Date.now() });
+      while (samples.length > 2 && Date.now() - samples[0].t > 10_000) samples.shift();
+    },
+    msPerBlock() {
+      if (samples.length < 2) return 400;
+      const a = samples[0];
+      const b = samples[samples.length - 1];
+      const ms = (b.t - a.t) / Number(b.n - a.n);
+      return ms > 50 && ms < 5000 ? ms : 400;
+    },
+    /** estimated current block right now, extrapolated from the last head */
+    now() {
+      const last = samples[samples.length - 1];
+      if (!last) return 0n;
+      return last.n + BigInt(Math.floor((Date.now() - last.t) / this.msPerBlock()));
+    },
+  };
+}
 
 export function explorerTx(hash: string) {
   return CONFIG.explorer ? `${CONFIG.explorer}/tx/${hash}` : "";
@@ -242,11 +279,11 @@ export function shortErr(e: unknown): string {
   const any = e as { shortMessage?: string; message?: string; cause?: { data?: { errorName?: string } } };
   const name = any?.cause?.data?.errorName;
   const map: Record<string, string> = {
-    AlreadyVoted: "Bu kartla zaten oy verildi.",
-    OwnProject: "Kendi projene oy veremezsin.",
-    NotVoter: "Bu kart kayıtlı değil.",
-    WrongPhase: "Oylama şu an açık değil.",
-    UnknownProject: "Proje bulunamadı.",
+    WrongWord: "Kelime zincirdekiyle eşleşmedi.",
+    NotStarted: "Tur henüz başlamadı.",
+    RoundOver: "Süre doldu.",
+    AlreadyFinished: "Bu turu zaten bitirdin.",
+    BadName: "İsim 1–16 karakter olmalı.",
   };
   if (name && map[name]) return map[name];
   const msg = any?.shortMessage || any?.message || String(e);

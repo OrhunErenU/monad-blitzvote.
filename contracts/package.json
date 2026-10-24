@@ -1,5 +1,5 @@
 {
-  "name": "blitzvote-contracts",
+  "name": "blitztype-contracts",
   "version": "1.0.0",
   "description": "",
   "scripts": {
@@ -7,15 +7,13 @@
     "test": "hardhat test",
     "node": "hardhat node",
     "deploy:local": "hardhat run scripts/deploy.ts --network localhost",
-    "deploy": "hardhat run scripts/deploy.ts --network monadTestnet",
-    "projects": "hardhat run scripts/add-projects.ts --network monadTestnet",
-    "voters": "hardhat run scripts/make-voters.ts --network monadTestnet",
-    "open": "hardhat run scripts/phase.ts --network monadTestnet",
-    "close": "hardhat run scripts/phase.ts --network monadTestnet",
-    "status": "hardhat run scripts/status.ts --network monadTestnet",
-    "simulate": "hardhat run scripts/simulate.ts --network monadTestnet",
     "rehearse": "hardhat run scripts/rehearse.ts --network monadTestnet",
-    "verify": "hardhat run scripts/verify.ts --network monadTestnet"
+    "deploy": "hardhat run scripts/deploy.ts --network monadTestnet",
+    "verify": "hardhat run scripts/verify.ts --network monadTestnet",
+    "cards": "hardhat run scripts/make-cards.ts --network monadTestnet",
+    "round": "hardhat run scripts/round.ts --network monadTestnet",
+    "leaderboard": "hardhat run scripts/leaderboard.ts --network monadTestnet",
+    "simulate": "hardhat run scripts/simulate.ts --network monadTestnet"
   },
   "keywords": [],
   "author": "",

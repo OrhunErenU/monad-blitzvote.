@@ -9,7 +9,7 @@ async function main() {
   console.log(`Ağ: ${network.name}  Deployer: ${deployer.address}`);
   console.log(`Bakiye: ${ethers.formatEther(await ethers.provider.getBalance(deployer.address))} MON`);
 
-  const bv = await ethers.deployContract("BlitzVote", [eventName]);
+  const bv = await ethers.deployContract("BlitzType", [eventName]);
   await bv.waitForDeployment();
   const address = await bv.getAddress();
   const receipt = await bv.deploymentTransaction()!.wait();
@@ -22,7 +22,7 @@ async function main() {
   fs.mkdirSync(path.dirname(APP_DEPLOYMENT), { recursive: true });
   fs.writeFileSync(APP_DEPLOYMENT, JSON.stringify(info, null, 2));
 
-  console.log(`\nBlitzVote deploy edildi: ${address}`);
+  console.log(`\nBlitzType deploy edildi: ${address}`);
   console.log(`Blok: ${receipt!.blockNumber}`);
   console.log(`app/src/deployment.json güncellendi — frontend bu adresi kullanacak.`);
 }
