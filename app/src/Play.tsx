@@ -118,7 +118,7 @@ export default function Play({ pk, initialMode = "room" }: { pk: Hex; initialMod
     try {
       const est = await publicClient.estimateContractGas({ ...contract, functionName: "setName", args: [n], account: address });
       const { receipt } = await burner.sendAndConfirm(encodeName(n), pad(est, NAME_GAS_CEIL));
-      if (receipt.status !== "success") throw new Error("İşlem geri döndü");
+      if (receipt.status !== "success") throw new Error("Transaction reverted");
       setSt((s) => (s ? { ...s, myName: n } : s));
     } catch (e) {
       setErr(shortErr(e));
@@ -142,7 +142,7 @@ export default function Play({ pk, initialMode = "room" }: { pk: Hex; initialMod
       const gas = isLast ? (base + 90_000n > WORD_GAS_CEIL ? WORD_GAS_CEIL : base + 90_000n) : base;
       const t0 = performance.now();
       const { receipt, viaSync } = await burner.sendAndConfirm(encodeWord(word), gas);
-      if (receipt.status !== "success") throw new Error("İşlem geri döndü (gas yetmedi mi?)");
+      if (receipt.status !== "success") throw new Error("Transaction reverted (out of gas?)");
       setConfirmed((c) => Math.max(c, wordIndex + 1));
       setLatency({ secs: (performance.now() - t0) / 1000, block: receipt.blockNumber, hash: receipt.transactionHash, sync: viaSync });
       const fin = parseEventLogs({ abi: blitzTypeAbi, logs: receipt.logs, eventName: "Finished" })[0];
@@ -202,17 +202,17 @@ export default function Play({ pk, initialMode = "room" }: { pk: Hex; initialMod
 
   if (balance === 0n) {
     return (
-      <Shell status={<span className="status">Gas yok</span>}>
+      <Shell status={<span className="status">No gas</span>}>
         <div className="pbody">
-          <span className="kicker">Cüzdanın hazır, bakiyesi boş</span>
-          <h1 className="headline">Bu adrese biraz testnet MON gönder</h1>
-          <p className="lede">Her kelime ~0,01 MON gas yakar; 0,5 MON onlarca test için yeter. MON: faucet.monad.xyz ya da blitz.devnads.com.</p>
+          <span className="kicker">Your wallet is ready, but empty</span>
+          <h1 className="headline">Send a little testnet MON to this address</h1>
+          <p className="lede">Each word burns ~0.01 MON of gas; 0.5 MON lasts dozens of runs. Get MON at faucet.monad.xyz or blitz.devnads.com.</p>
           <button className="btn" onClick={() => navigator.clipboard?.writeText(address)}>
-            Adresi kopyala
+            Copy address
           </button>
           <code className="addrbox">{address}</code>
           <button className="btn ghost" onClick={() => publicClient.getBalance({ address }).then(setBalance)}>
-            Bakiyeyi yenile
+            Refresh balance
           </button>
         </div>
         {footer}
@@ -222,16 +222,16 @@ export default function Play({ pk, initialMode = "room" }: { pk: Hex; initialMod
 
   const roundOn = phase === "countdown" || phase === "live";
   const tabs = (
-    <nav className={`tabs${roundOn || mode === "race" ? " t3" : ""}`} aria-label="Mod">
+    <nav className={`tabs${roundOn || mode === "race" ? " t3" : ""}`} aria-label="Mode">
       <button className={mode === "room" ? "on" : ""} onClick={() => setMode("room")} lang="en">
         Online
       </button>
       <button className={mode === "solo" ? "on" : ""} onClick={() => setMode("solo")}>
-        Bireysel
+        Solo
       </button>
       {(roundOn || mode === "race") && (
         <button className={mode === "race" ? "on" : ""} onClick={() => setMode("race")}>
-          Sahne{roundOn && mode !== "race" ? <i className="dot" aria-label="canlı" /> : null}
+          Stage{roundOn && mode !== "race" ? <i className="dot" aria-label="live" /> : null}
         </button>
       )}
     </nav>
@@ -239,25 +239,25 @@ export default function Play({ pk, initialMode = "room" }: { pk: Hex; initialMod
 
   if (st && !st.myName) {
     return (
-      <Shell status={<span className="status">Kayıt</span>}>
+      <Shell status={<span className="status">Sign up</span>}>
         <form className="pbody" onSubmit={saveName}>
-          <span className="kicker">Adım 1 / 1</span>
-          <h1 className="headline">Adın ne yazsın?</h1>
-          <p className="lede">Odada, rekor tablosunda ve projektörde bu görünecek. Kaydetmek de bir Monad işlemi.</p>
+          <span className="kicker">Step 1 / 1</span>
+          <h1 className="headline">Pick a name</h1>
+          <p className="lede">Shown in rooms, on the leaderboard and on the projector. Saving it is a Monad transaction too.</p>
           <input
             className="field"
             value={name}
             onChange={(e) => setName(e.target.value.slice(0, 16))}
-            placeholder="ör. Obu"
+            placeholder="e.g. obu"
             maxLength={16}
             autoFocus
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
-            aria-label="Takma ad"
+            aria-label="Nickname"
           />
           <button className="btn" disabled={!name.trim() || savingName}>
-            {savingName ? "Zincire yazılıyor…" : "Kaydet"}
+            {savingName ? "Writing to chain…" : "Save"}
           </button>
           {err && <p className="err">{err}</p>}
         </form>
@@ -283,7 +283,7 @@ export default function Play({ pk, initialMode = "room" }: { pk: Hex; initialMod
 
   if (st && mode === "solo") {
     return (
-      <Shell status={<span className="status">Bireysel</span>}>
+      <Shell status={<span className="status">Solo</span>}>
         {tabs}
         <Solo burner={burner} name={st.myName} msPerBlock={() => clock.current.msPerBlock()} onErr={setErr} />
         {err && (
@@ -298,11 +298,11 @@ export default function Play({ pk, initialMode = "room" }: { pk: Hex; initialMod
 
   if (phase === "countdown") {
     return (
-      <Shell status={<span className="status countdown">Tur {st?.round} · Hazır</span>}>
+      <Shell status={<span className="status countdown">Round {st?.round} · Ready</span>}>
         <div className="takeover">
-          <span className="kicker">Başlıyor</span>
+          <span className="kicker">Starting</span>
           <div className="giant">{countdownSecs}</div>
-          <span className="kicker">{st?.wordCount} kelime · her doğru kelime bir Monad işlemi</span>
+          <span className="kicker">{st?.wordCount} words · every correct word is a Monad transaction</span>
         </div>
       </Shell>
     );
@@ -312,7 +312,7 @@ export default function Play({ pk, initialMode = "room" }: { pk: Hex; initialMod
     <Shell
       status={
         <span className={`status ${phase === "live" ? "live" : phase === "over" || phase === "finished" ? "over" : ""}`}>
-          {phase === "idle" ? "Bekleniyor" : `Tur ${st?.round} · ${phase === "live" ? "Canlı" : "Bitti"}`}
+          {phase === "idle" ? "Waiting" : `Round ${st?.round} · ${phase === "live" ? "Live" : "Over"}`}
         </span>
       }
     >
@@ -321,7 +321,7 @@ export default function Play({ pk, initialMode = "room" }: { pk: Hex; initialMod
         <span>{st?.myName ?? "…"}</span>
         {phase === "live" && (
           <span>
-            {idx}/{words.length} · {leftSecs} sn
+            {idx}/{words.length} · {leftSecs}s
           </span>
         )}
       </div>
@@ -329,18 +329,18 @@ export default function Play({ pk, initialMode = "room" }: { pk: Hex; initialMod
       <div className="pbody">
         {phase === "idle" && (
           <>
-            <span className="kicker">Hazırsın, {st?.myName}</span>
-            <h1 className="headline">Salon turu başlayınca kelimeler burada belirecek</h1>
-            <p className="lede">Ekranı açık tut. Beklerken bireysel testte rekorunu zorla; tur başlayınca sekmede işaret çıkar.</p>
+            <span className="kicker">Ready, {st?.myName}</span>
+            <h1 className="headline">Words appear here when the stage round starts</h1>
+            <p className="lede">Keep this screen open. Meanwhile, play an online room; the tab lights up when the round starts.</p>
             <button className="btn ghost" onClick={() => setMode("room")}>
-              Online odaya geç
+              Go to online rooms
             </button>
           </>
         )}
 
         {phase === "live" && (
           <>
-            <div className={`keys${shake ? " shake" : ""}`} aria-label={`Yazılacak kelime: ${target}`}>
+            <div className={`keys${shake ? " shake" : ""}`} aria-label={`Word to type: ${target}`}>
               {[...target].map((ch, i) => (
                 <span
                   key={i}
@@ -363,8 +363,8 @@ export default function Play({ pk, initialMode = "room" }: { pk: Hex; initialMod
               autoComplete="off"
               spellCheck={false}
               enterKeyHint="next"
-              placeholder="yaz…"
-              aria-label="Kelimeyi yaz"
+              placeholder="type…"
+              aria-label="Type the word"
             />
             <Segments total={words.length} typed={idx} confirmed={confirmed} />
           </>
@@ -372,16 +372,16 @@ export default function Play({ pk, initialMode = "room" }: { pk: Hex; initialMod
 
         {phase === "finished" && (
           <div className="result">
-            <span className="kicker">Bitiş · sıran</span>
+            <span className="kicker">Finish · your place</span>
             {result ? (
               <>
                 <div className="pos">{result.rank}</div>
-                <h1 className="headline">{result.blocks} blokta bitirdin</h1>
-                <p className="lede">Sıran zincirde kesinleşti; projektörde de görünüyor.</p>
+                <h1 className="headline">Finished in {result.blocks} blocks</h1>
+                <p className="lede">Your place is final on-chain and on the projector.</p>
               </>
             ) : (
               <>
-                <h1 className="headline">Son kelimen zincire gidiyor</h1>
+                <h1 className="headline">Your last word is on its way</h1>
                 <Segments total={words.length} typed={idx} confirmed={confirmed} />
               </>
             )}
@@ -391,11 +391,11 @@ export default function Play({ pk, initialMode = "room" }: { pk: Hex; initialMod
 
         {phase === "over" && (
           <>
-            <span className="kicker">Süre doldu</span>
+            <span className="kicker">Time's up</span>
             <h1 className="headline">
-              {confirmed}/{words.length} kelime zincirde
+              {confirmed}/{words.length} words on-chain
             </h1>
-            <p className="lede">Sonraki tura hazır ol.</p>
+            <p className="lede">Get ready for the next round.</p>
             <Segments total={words.length} typed={idx} confirmed={confirmed} />
           </>
         )}
@@ -403,7 +403,7 @@ export default function Play({ pk, initialMode = "room" }: { pk: Hex; initialMod
         {latency && (
           <a className="receipt" href={explorerTx(latency.hash) || undefined} target="_blank" rel="noreferrer">
             <span>
-              son kelime <b>{latency.secs.toFixed(2)} sn</b>'de blokta
+              last word in a block in <b>{latency.secs.toFixed(2)}s</b>
             </span>
             <span>
               #{latency.block.toString()}
@@ -419,28 +419,6 @@ export default function Play({ pk, initialMode = "room" }: { pk: Hex; initialMod
         </div>
       )}
       {footer}
-    </Shell>
-  );
-}
-
-export function Landing() {
-  return (
-    <Shell status={<span className="onmonad" lang="en">on Monad</span>}>
-      <div className="pbody">
-        <span className="kicker">Zincir üstünde yazma hızı</span>
-        <h1 className="headline">Yaz. Her kelime zincirde.</h1>
-        <p className="lede">Kartın varsa QR'ı okut; yoksa "Kartsız oyna" tarayıcında cüzdan açar. Online oda kur ve kodla arkadaşlarını çağır ya da tek başına 15 kelimelik hız testinde rekorunu kovala. Her doğru kelime bir Monad işlemi; sırayı ve süreyi zincir belirler.</p>
-        <a
-          className="btn"
-          href={`#/play${location.hash.match(/[?&]room=\d+/) ? "?" + location.hash.match(/room=\d+/)![0] : ""}`}
-          style={{ display: "grid", placeItems: "center", textDecoration: "none" }}
-        >
-          Kartsız oyna
-        </a>
-        <a className="btn ghost" href="#/screen" style={{ display: "grid", placeItems: "center", textDecoration: "none" }}>
-          Projektör ekranı
-        </a>
-      </div>
     </Shell>
   );
 }

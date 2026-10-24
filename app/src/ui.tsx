@@ -9,8 +9,8 @@ export function Segments({ total, typed, confirmed }: { total: number; typed: nu
         ))}
       </div>
       <div className="legend">
-        <span>yazdın {typed}</span>
-        <span className="c">zincirde {confirmed}</span>
+        <span>typed {typed}</span>
+        <span className="c">on-chain {confirmed}</span>
       </div>
     </div>
   );

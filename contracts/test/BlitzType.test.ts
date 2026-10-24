@@ -4,6 +4,13 @@ import { SOLO_POOL } from "../scripts/words";
 
 const WORDS = ["monad", "blok", "hizli", "zincir"];
 
+
+function walkIndex(seed: string, i: number) {
+  const n = BigInt(SOLO_POOL.length);
+  const x = BigInt(seed);
+  return Number((x % n + BigInt(i) * (1n + (x >> 128n) % (n - 1n))) % n);
+}
+
 async function mine(n: number) {
   await network.provider.send("hardhat_mine", ["0x" + n.toString(16)]);
 }
@@ -132,8 +139,7 @@ describe("BlitzType", () => {
     const n = BigInt(SOLO_POOL.length);
     const out: string[] = [];
     for (let i = 0; i < 15; i++) {
-      const h = BigInt(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(["bytes32", "uint256"], [seed, i])));
-      const idx = Number(h % n);
+      const idx = walkIndex(seed, i);
       expect(await bt.soloWordIndex(seed, i)).to.equal(BigInt(idx)); // client derivation == contract
       out.push(SOLO_POOL[idx]);
     }
@@ -227,9 +233,8 @@ describe("BlitzType", () => {
   // -------------------------------------------------------------------- rooms
   function roomWords(seed: string, count: number) {
     const n = BigInt(SOLO_POOL.length);
-    return Array.from({ length: count }, (_, i) =>
-      SOLO_POOL[Number(BigInt(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(["bytes32", "uint256"], [seed, i]))) % n)]
-    );
+    void n;
+    return Array.from({ length: count }, (_, i) => SOLO_POOL[walkIndex(seed, i)]);
   }
 
   it("rooms: create with a code, join, only host starts, race with ranks", async () => {
@@ -266,6 +271,9 @@ describe("BlitzType", () => {
     expect(names[1]).to.equal("bob");
     expect(done.map(Number)).to.deep.equal([5, 5, 3]);
     expect(rank.map(Number)).to.deep.equal([2, 1, 0]);
+    expect(await bt.roomWins(bob.address)).to.equal(1n);
+    expect(await bt.roomWins(host.address)).to.equal(0n);
+    expect(new Set(w).size).to.equal(w.length);
     expect(blocks[1]).to.be.greaterThan(0n);
 
     // a second room gets the next code and is independent
@@ -297,5 +305,14 @@ describe("BlitzType", () => {
     const h = await bt.soloHistory(alice.address);
     expect(h.length).to.equal(2);
     expect(h[1]).to.be.greaterThan(h[0]);
+  });
+
+  it("pool size is prime, so words never repeat within a run", async () => {
+    const n = SOLO_POOL.length;
+    for (let d = 2; d * d <= n; d++) expect(n % d).to.not.equal(0);
+    for (const seed of [ethers.ZeroHash, ethers.keccak256("0x01"), ethers.keccak256("0x02"), ethers.MaxUint256.toString(16).padStart(64, "0").replace(/^/, "0x")]) {
+      const idx = Array.from({ length: n }, (_, i) => walkIndex(seed, i));
+      expect(new Set(idx).size).to.equal(n);
+    }
   });
 });

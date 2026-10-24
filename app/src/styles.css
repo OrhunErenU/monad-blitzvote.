@@ -283,3 +283,19 @@ a { color: inherit; }
 .hist-list li { display: grid; grid-template-columns: 1fr 1fr 1fr 4.5em; padding: 9px 0; border-bottom: var(--hair); }
 .hist-list li span:last-child { text-align: right; color: var(--ink-3); }
 .hist-list li.best span:last-child { color: var(--chain); font-weight: 700; }
+
+/* room winner reveal */
+.winner { position: fixed; inset: 0; z-index: 50; background: var(--live); display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 14px; padding: 24px; text-align: center; animation: w-in 0.35s cubic-bezier(.2,.9,.3,1.3) both; }
+.winner .chequer { position: absolute; left: 0; right: 0; top: 0; height: 28px; background-size: 28px 28px; animation: w-flag 0.6s steps(2) infinite; }
+.winner .w-name { font: 900 clamp(48px, 18vw, 120px)/0.9 var(--display); font-variation-settings: "wdth" 70; text-transform: uppercase; word-break: break-word; animation: w-pop 0.6s 0.15s cubic-bezier(.2,.9,.3,1.4) both; }
+.winner .w-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.winner .w-stats span { font: 700 15px/1 var(--mono); padding: 8px 10px; border: var(--line); background: var(--paper); }
+.winner .w-stats span:last-child { background: var(--ink); color: var(--paper); }
+.winner .w-you { font: 800 18px/1 var(--display); text-transform: uppercase; letter-spacing: 0.1em; }
+.winner .w-tap { position: absolute; bottom: 24px; font: 500 12px/1 var(--mono); color: var(--ink-2); }
+@keyframes w-in { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes w-pop { from { transform: scale(0.4); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes w-flag { to { background-position: 28px 0; } }
+.crown { display: inline-block; width: 12px; height: 12px; margin-right: 6px; background: var(--live); border: 1.5px solid var(--ink); transform: rotate(45deg); vertical-align: 1px; }
+.wins { font: 700 11px/1 var(--mono); font-style: normal; margin-left: 6px; padding: 2px 4px; background: var(--ink); color: var(--paper); vertical-align: 2px; }
+@media (prefers-reduced-motion: reduce) { .winner, .winner .w-name, .winner .chequer { animation: none; } }

@@ -4,7 +4,7 @@
 
 Three ways to play, one contract:
 
-- **Online rooms**: anyone opens a room and gets a code (`createRoom`), friends join with the code or an invite link (`joinRoom`), the host starts (`startRoom`) and everyone races live. Words are drawn from the on-chain pool at start; each player's progress, rank and blocks taken live in the contract (`roomBoard`).
+- **Online rooms**: anyone opens a room and gets a code (`createRoom`), friends join with the code or an invite link (`joinRoom`), the host starts (`startRoom`) and everyone races live. Words are drawn from the on-chain pool at start; each player's progress, rank and blocks taken live in the contract (`roomBoard`), and room wins are counted on-chain (`roomWins`), shown next to each name with a winner reveal at the end.
 - **Stage round** (event mode): the organizer starts a round for the whole hall from `/#/admin`; the projector shows live lanes and the podium.
 - **Solo test** (individual, any time, Monkeytype-style): `startSolo()` draws 15 words for you on-chain, you type them, and your score is the number of blocks from start to your last word. Personal bests, the full history of your runs (`soloHistory`) and a top-10 board live in the contract.
 
@@ -15,8 +15,8 @@ The organizer starts a round with a list of words. Everyone in the room scans a 
 | | |
 |---|---|
 | Contract | `contracts/contracts/BlitzType.sol` on Monad Testnet (chain 10143) |
-| Live app | https://orhunerenu.github.io/monad-blitzvote./ · phone: `/#/p/<card>` · solo without a card: `/#/solo` · projector: `/#/screen` · organizer: `/#/admin` |
-| Contract address | [`0x7740bb132eb527A16a4A8755a4e853cDAca16C2c`](https://testnet.monadvision.com/address/0x7740bb132eb527A16a4A8755a4e853cDAca16C2c) (verified, Sourcify "perfect") |
+| Live app | https://orhunerenu.github.io/monad-blitzvote./ (opens straight into the game; a wallet is created in the browser) · QR card: `/#/p/<card>` · invite: `/#/?room=<code>` · projector: `/#/screen` · organizer: `/#/admin` |
+| Contract address | [`0xdf5F7Bd6059f88085eA8079671a7bF799284006e`](https://testnet.monadvision.com/address/0xdf5F7Bd6059f88085eA8079671a7bF799284006e) (verified, Sourcify "perfect") |
 
 ## Why it needs the chain
 
@@ -26,7 +26,7 @@ Typing games normally trust a server for scores. Here the contract is the refere
 - **Timing is the chain's.** Typing is only accepted between `startBlock` and `endBlock` (`NotStarted` / `RoundOver`).
 - **Finish order is consensus.** The first `typeWord` that completes the list gets rank 1 (`finisherAt[round][rank]`); `blocksTaken` is recorded on-chain.
 - **Anyone can audit a race.** Every word is a `Typed` event; `podium()` and `progressOf()` are public.
-- **Solo words are picked by the contract.** `startSolo()` derives a seed from the previous block hash and `prevrandao`; word *i* is `pool[keccak256(seed, i) % pool.length]`. The 131-word pool is stored as packed 8-byte hashes (4 per slot) at deploy time. Words are only accepted from the block after `startSolo`, so the score (blocks taken) is the chain's clock, not the phone's. Only a personal best touches the shared top-10 array, so solo players don't contend with each other.
+- **Solo words are picked by the contract.** `startSolo()` derives a seed from the previous block hash and `prevrandao`; Word *i* is `pool[(start + i·step) mod n]` with `start`/`step` from the seed; the 211-word English pool has a prime size, so **no word repeats inside a run or a room**. The pool is stored as packed 8-byte hashes (4 per slot) at deploy time. Words are only accepted from the block after `startSolo`, so the score (blocks taken) is the chain's clock, not the phone's. Only a personal best touches the shared top-10 array, so solo players don't contend with each other.
 
 ### Compared with prior typing games
 - **Typeflood Racer** (ETHGlobal Paris, Neon prize) turned typing speed into transactions as crowdsourced load testing.
@@ -65,7 +65,7 @@ Requirements: Node 20+, a Monad testnet wallet with MON (≥ 10 MON is easiest b
 cd contracts
 npm install
 cp .env.example .env         # PRIVATE_KEY, later APP_URL
-npm test                     # 18 tests incl. a 50-player race, rooms and solo mode
+npm test                     # 19 tests incl. a 50-player race, rooms and solo mode
 
 npm run rehearse             # throwaway deploy: real gas per word, sync-receipt support, latency
 npm run deploy               # writes app/src/deployment.json (commit it)
@@ -100,7 +100,7 @@ npx hardhat run scripts/simulate.ts --network localhost
 ## Repo map
 ```
 contracts/contracts/BlitzType.sol   rounds · on-chain word check · per-player progress · finish order · names · funding · solo runs + top 10
-contracts/test/BlitzType.test.ts    18 tests (countdown/end block, wrong words, order, podium, 50 concurrent players, rooms, solo + history, gas)
+contracts/test/BlitzType.test.ts    19 tests (countdown/end block, wrong words, order, podium, 50 concurrent players, rooms, solo + history, gas)
 contracts/scripts/                  deploy · rehearse · verify · make-cards · round · simulate · leaderboard · words
 app/src/chain.ts                    RPC fallback, Multicall3, burner signer (local nonce, cached fees, sync send)
 app/src/Play.tsx                    phone: name → mode tabs (room race / solo) → countdown → type → rank

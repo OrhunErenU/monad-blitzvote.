@@ -110,9 +110,9 @@ export default function Solo({
     try {
       const est = await publicClient.estimateContractGas({ ...contract, functionName: "startSolo", account: address });
       const { receipt } = await burner.sendAndConfirm(encodeStartSolo(), pad(est, START_GAS_CEIL));
-      if (receipt.status !== "success") throw new Error("İşlem geri döndü");
+      if (receipt.status !== "success") throw new Error("Transaction reverted");
       const ev = parseEventLogs({ abi: blitzTypeAbi, logs: receipt.logs, eventName: "SoloStarted" })[0];
-      if (!ev) throw new Error("SoloStarted olayı yok");
+      if (!ev) throw new Error("No SoloStarted event");
       setWords(soloWords(ev.args.seed, SOLO_POOL, SOLO_WORDS));
       setRuns(Number(ev.args.run));
       setIdx(0);
@@ -145,7 +145,7 @@ export default function Solo({
       }
       const t = performance.now();
       const { receipt } = await burner.sendAndConfirm(encodeSoloWord(word), gas);
-      if (receipt.status !== "success") throw new Error("İşlem geri döndü (gas yetmedi mi?)");
+      if (receipt.status !== "success") throw new Error("Transaction reverted (out of gas?)");
       setConfirmed((c) => Math.max(c, i + 1));
       setLatency({ secs: (performance.now() - t) / 1000, block: receipt.blockNumber, hash: receipt.transactionHash });
       const fin = parseEventLogs({ abi: blitzTypeAbi, logs: receipt.logs, eventName: "SoloFinished" })[0];
@@ -208,36 +208,36 @@ export default function Solo({
       <div className="pmeta">
         <span>{name}</span>
         <span>
-          {phase === "live" ? `${idx}/${SOLO_WORDS} · ${elapsed} sn` : best ? `rekorun ${best} blok` : `${SOLO_WORDS} kelime`}
+          {phase === "live" ? `${idx}/${SOLO_WORDS} · ${elapsed}s` : best ? `best ${best} blocks` : `${SOLO_WORDS} words`}
         </span>
       </div>
 
       <div className="pbody">
         {(phase === "ready" || phase === "starting") && (
           <>
-            <span className="kicker">Bireysel test · {SOLO_WORDS} kelime</span>
+            <span className="kicker">Solo test · {SOLO_WORDS} words</span>
             <h1 className="headline">
               {best ? (
                 <>
-                  Rekorun <b className="num">{best}</b> blok · ≈{((best * ms) / 1000).toFixed(1)} sn
+                  Best <b className="num">{best}</b> blocks · ≈{((best * ms) / 1000).toFixed(1)}s
                 </>
               ) : (
-                "Kelimeleri zincir seçer, süreni zincir tutar"
+                "The chain picks the words and keeps the time"
               )}
             </h1>
             <p className="lede">
-              Başlayınca kontrat sana {SOLO_WORDS} kelime çeker. Her doğru kelime bir işlem; skorun, başlangıçtan son kelimeye kadar geçen
-              blok sayısı.
+              The contract draws {SOLO_WORDS} different words for you. Every correct word is a transaction; your score is the number of
+              blocks from start to your last word.
             </p>
             <button className="btn" onClick={start} disabled={phase === "starting"}>
-              {phase === "starting" ? "Kelimeler çekiliyor…" : runs ? "Tekrar dene" : "Başla"}
+              {phase === "starting" ? "Drawing words…" : runs ? "Try again" : "Start"}
             </button>
           </>
         )}
 
         {phase === "live" && (
           <>
-            <div className={`keys${shake ? " shake" : ""}`} aria-label={`Yazılacak kelime: ${target}`}>
+            <div className={`keys${shake ? " shake" : ""}`} aria-label={`Word to type: ${target}`}>
               {[...target].map((ch, i) => (
                 <span key={i} className={`key${i < typed.length ? (wrongAt !== -1 && i >= wrongAt ? " miss" : " hit") : ""}`}>
                   {ch}
@@ -257,8 +257,8 @@ export default function Solo({
               autoComplete="off"
               spellCheck={false}
               enterKeyHint="next"
-              placeholder="yaz…"
-              aria-label="Kelimeyi yaz"
+              placeholder="type…"
+              aria-label="Type the word"
             />
             <Segments total={words.length} typed={idx} confirmed={confirmed} />
           </>
@@ -266,16 +266,16 @@ export default function Solo({
 
         {phase === "done" && done && (
           <div className="result">
-            <span className="kicker">{done.pb ? "Yeni kişisel rekor" : "Bitti"}</span>
+            <span className="kicker">{done.pb ? "New personal best" : "Done"}</span>
             <div className="pos">{done.blocks}</div>
-            <h1 className="headline">blok</h1>
+            <h1 className="headline">blocks</h1>
             <p className="lede">
-              <b>≈{((done.blocks * ms) / 1000).toFixed(1)} sn</b>
-              {done.wpm ? <> · <b>{done.wpm} WPM</b> (telefon saatiyle)</> : null}. Skor zincirde: {SOLO_WORDS} kelimenin hepsini kontrat
-              doğruladı.
+              <b>≈{((done.blocks * ms) / 1000).toFixed(1)}s</b>
+              {done.wpm ? <> · <b>{done.wpm} WPM</b> (phone clock)</> : null}. Score is on-chain: the contract verified all {SOLO_WORDS}
+              words.
             </p>
             <button className="btn" onClick={start}>
-              Tekrar dene
+              Try again
             </button>
           </div>
         )}
@@ -283,7 +283,7 @@ export default function Solo({
         {latency && phase !== "ready" && (
           <a className="receipt" href={explorerTx(latency.hash) || undefined} target="_blank" rel="noreferrer">
             <span>
-              son kelime <b>{latency.secs.toFixed(2)} sn</b>'de blokta
+              last word in a block in <b>{latency.secs.toFixed(2)}s</b>
             </span>
             <span>#{latency.block.toString()}</span>
           </a>
@@ -292,7 +292,7 @@ export default function Solo({
         {phase !== "live" && <History runs={history} ms={ms} />}
         {phase !== "live" && (
           <>
-            <span className="kicker">Herkes · ilk 10</span>
+            <span className="kicker">Everyone · top 10</span>
             <Board top={top} me={address} ms={ms} />
           </>
         )}
@@ -302,15 +302,15 @@ export default function Solo({
 }
 
 export function Board({ top, me, ms }: { top: SoloEntry[]; me?: Address; ms: number }) {
-  if (top.length === 0) return <p className="lede board-empty">Henüz rekor yok. İlk sen ol.</p>;
+  if (top.length === 0) return <p className="lede board-empty">No records yet. Be the first.</p>;
   return (
-    <ol className="board" aria-label="Bireysel rekorlar">
+    <ol className="board" aria-label="Solo records">
       {top.map((t, i) => (
         <li key={t.player} className={t.player === me ? "me" : ""}>
           <span className="p">{i + 1}</span>
           <span className="n">{t.name}</span>
-          <span className="b">{t.best} blok</span>
-          <span className="s">≈{((t.best * ms) / 1000).toFixed(1)} sn</span>
+          <span className="b">{t.best} blocks</span>
+          <span className="s">≈{((t.best * ms) / 1000).toFixed(1)}s</span>
         </li>
       ))}
     </ol>
@@ -328,21 +328,21 @@ function History({ runs, ms }: { runs: number[]; ms: number }) {
   const prev = runs.length > 1 ? runs[runs.length - 2] : null;
   const latest = runs[runs.length - 1];
   return (
-    <section className="hist" aria-label="Geçmiş turların">
+    <section className="hist" aria-label="Your runs">
       <div className="hist-head">
-        <span className="kicker">Geçmiş turların · {runs.length}</span>
+        <span className="kicker">Your runs · {runs.length}</span>
         <span className="hist-stats">
-          rekor <b>{best}</b> · ort {avg.toFixed(0)}
+          best <b>{best}</b> · avg {avg.toFixed(0)}
           {prev !== null && (
             <em className={latest <= prev ? "up" : "down"}>
-              {latest <= prev ? "▲" : "▼"} {Math.abs(prev - latest)} blok
+              {latest <= prev ? "▲" : "▼"} {Math.abs(prev - latest)} blocks
             </em>
           )}
         </span>
       </div>
       <div className="hist-bars">
         {last.map((b, i) => (
-          <div key={i} className={`hb${b === best ? " best" : ""}${i === last.length - 1 ? " now" : ""}`} title={`Tur ${first + i + 1}: ${b} blok`}>
+          <div key={i} className={`hb${b === best ? " best" : ""}${i === last.length - 1 ? " now" : ""}`} title={`Run ${first + i + 1}: ${b} blocks`}>
             <i style={{ height: `${Math.max(8, (b / max) * 100)}%` }} />
             <span>{first + i + 1}</span>
           </div>
@@ -354,10 +354,10 @@ function History({ runs, ms }: { runs: number[]; ms: number }) {
           .slice(0, 6)
           .map((i) => (
             <li key={i} className={runs[i] === best ? "best" : ""}>
-              <span>Tur {i + 1}</span>
-              <span>{runs[i]} blok</span>
-              <span>≈{((runs[i] * ms) / 1000).toFixed(1)} sn</span>
-              <span>{runs[i] === best ? "rekor" : `+${runs[i] - best}`}</span>
+              <span>Run {i + 1}</span>
+              <span>{runs[i]} blocks</span>
+              <span>≈{((runs[i] * ms) / 1000).toFixed(1)}s</span>
+              <span>{runs[i] === best ? "best" : `+${runs[i] - best}`}</span>
             </li>
           ))}
       </ol>

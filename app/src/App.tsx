@@ -3,7 +3,7 @@ import type { Hex } from "viem";
 import { generatePrivateKey } from "viem/accounts";
 import { CONFIG, loadKey, saveKey } from "./chain";
 import { useHashRoute } from "./hooks";
-import Play, { Landing } from "./Play";
+import Play from "./Play";
 import Race from "./Race";
 import Admin from "./Admin";
 
@@ -22,9 +22,9 @@ export default function App() {
     }
   }, [route]);
 
-  // no card: #/solo makes a wallet in this browser; the player funds it themselves
+  // no card: any player route makes a wallet in this browser; the player funds it themselves
   useEffect(() => {
-    if ((route.startsWith("/solo") || route.startsWith("/play")) && !pk) {
+    if (!pk && !route.startsWith("/admin") && !route.startsWith("/screen") && !route.startsWith("/p/")) {
       const key = generatePrivateKey();
       saveKey(key);
       setPk(key);
@@ -36,10 +36,10 @@ export default function App() {
     return (
       <div className="phone">
         <div className="pbody">
-          <span className="kicker">Kurulum</span>
-          <h1 className="headline">Kontrat adresi yok</h1>
+          <span className="kicker">Setup</span>
+          <h1 className="headline">No contract address</h1>
           <p className="lede">
-            QR kartındaki bağlantıyı kullan ya da organizatör panelinden (<a href="#/admin">#/admin</a>) deploy et.
+            Open the link on your QR card, or deploy from the organizer panel (<a href="#/admin">#/admin</a>).
           </p>
         </div>
       </div>
@@ -48,7 +48,7 @@ export default function App() {
   if (route.startsWith("/screen")) return <Race />;
   if (route.startsWith("/solo")) return pk ? <Play pk={pk} initialMode="solo" /> : null;
   if (route.startsWith("/play")) return pk ? <Play pk={pk} initialMode="room" /> : null;
+  // straight into the game: a wallet is made in this browser on first visit
   if (pk) return <Play pk={pk} />;
-  if (route.startsWith("/p/")) return null;
-  return <Landing />;
+  return null;
 }

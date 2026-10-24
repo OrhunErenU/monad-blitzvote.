@@ -1,7 +1,7 @@
 {
-  "address": "0x7740bb132eb527A16a4A8755a4e853cDAca16C2c",
+  "address": "0xdf5F7Bd6059f88085eA8079671a7bF799284006e",
   "chainId": 10143,
   "rpcUrl": "https://testnet-rpc.monad.xyz",
-  "deployBlock": 73803296,
+  "deployBlock": 73807079,
   "eventName": "Monad Blitz Ankara"
 }

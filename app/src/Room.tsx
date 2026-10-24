@@ -76,6 +76,8 @@ export default function Room({
   const pending = useRef<Promise<unknown>[]>([]);
   const seedRef = useRef<string>("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const [winner, setWinner] = useState<RoomPlayer | null>(null);
+  const shownWinner = useRef<string>("");
 
   const enter = useCallback(
     (id: bigint | null) => {
@@ -93,6 +95,8 @@ export default function Room({
       setConfirmed(0);
       setLatency(null);
       seedRef.current = "";
+      shownWinner.current = "";
+      setWinner(null);
       wordGas.current = null;
       pending.current = [];
     },
@@ -110,6 +114,13 @@ export default function Room({
       }
       setInfo(r.info);
       setBoard(r.board);
+      const first = r.board.find((p) => p.rank === 1);
+      const key = `${roomId}`;
+      if (first && shownWinner.current !== key) {
+        shownWinner.current = key;
+        setWinner(first);
+        setTimeout(() => setWinner(null), 5200);
+      }
       const me = r.board.find((p) => p.player.toLowerCase() === address.toLowerCase());
       if (r.info.startBlock > 0n && r.info.seed !== seedRef.current) {
         seedRef.current = r.info.seed;
@@ -160,7 +171,7 @@ export default function Room({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const est = await publicClient.estimateContractGas({ ...contract, functionName: fn as any, args: args as any, account: address });
       const { receipt } = await burner.sendAndConfirm(data, pad(est, 20_000n));
-      if (receipt.status !== "success") throw new Error("İşlem geri döndü");
+      if (receipt.status !== "success") throw new Error("Transaction reverted");
       return receipt;
     } catch (e) {
       onErr(shortErr(e));
@@ -171,7 +182,7 @@ export default function Room({
   }
 
   async function create() {
-    const r = await tx("Oda açılıyor…", "createRoom", encodeCreateRoom(wordCount), [wordCount]);
+    const r = await tx("Opening room…", "createRoom", encodeCreateRoom(wordCount), [wordCount]);
     const ev = r && parseEventLogs({ abi: blitzTypeAbi, logs: r.logs, eventName: "RoomCreated" })[0];
     if (ev) enter(ev.args.room);
   }
@@ -179,7 +190,7 @@ export default function Room({
   async function join() {
     const id = BigInt(code.trim() || "0");
     if (!id) return;
-    const r = await tx("Katılınıyor…", "joinRoom", encodeJoinRoom(id), [id]);
+    const r = await tx("Joining…", "joinRoom", encodeJoinRoom(id), [id]);
     if (r) enter(id);
   }
 
@@ -188,7 +199,7 @@ export default function Room({
     const ms = clock.msPerBlock();
     const delay = BigInt(Math.max(3, Math.ceil((COUNTDOWN_SECS * 1000) / ms)));
     const dur = BigInt(Math.ceil((RACE_SECS * 1000) / ms));
-    const r = await tx("Başlatılıyor…", "startRoom", encodeStartRoom(roomId, delay, dur), [roomId, delay, dur]);
+    const r = await tx("Starting…", "startRoom", encodeStartRoom(roomId, delay, dur), [roomId, delay, dur]);
     if (r) refresh();
   }
 
@@ -213,7 +224,7 @@ export default function Room({
       }
       const t = performance.now();
       const { receipt } = await burner.sendAndConfirm(encodeRoomWord(roomId, word), gas);
-      if (receipt.status !== "success") throw new Error("İşlem geri döndü (gas yetmedi mi?)");
+      if (receipt.status !== "success") throw new Error("Transaction reverted (out of gas?)");
       setConfirmed((c) => Math.max(c, i + 1));
       setLatency({ secs: (performance.now() - t) / 1000, block: receipt.blockNumber, hash: receipt.transactionHash });
       if (isLast) refresh();
@@ -265,38 +276,38 @@ export default function Room({
   if (phase === "none") {
     return (
       <div className="pbody">
-        <span className="kicker">Oda · {name}</span>
-        <h1 className="headline">Oda kur ya da koda katıl</h1>
-        <p className="lede">Odayı açan kodu paylaşır, herkes katılınca başlatır. Oda, oyuncular, kelimeler ve sıralama kontratta.</p>
+        <span className="kicker">Rooms · {name}</span>
+        <h1 className="headline">Create a room or join one</h1>
+        <p className="lede">The host shares the code and starts when everyone is in. Room, players, words and ranks all live in the contract.</p>
 
         <div className="roombox">
-          <span className="kicker">Koda katıl</span>
+          <span className="kicker">Join with a code</span>
           <div className="row2">
             <input
               className="field"
               inputMode="numeric"
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 8))}
-              placeholder="ör. 1001"
-              aria-label="Oda kodu"
+              placeholder="e.g. 1001"
+              aria-label="Room code"
             />
             <button className="btn" onClick={join} disabled={!code || !!busy}>
-              Katıl
+              Join
             </button>
           </div>
         </div>
 
         <div className="roombox">
-          <span className="kicker">Yeni oda</span>
-          <div className="seg3" role="radiogroup" aria-label="Kelime sayısı">
+          <span className="kicker">New room</span>
+          <div className="seg3" role="radiogroup" aria-label="Word count">
             {[10, 15, 20].map((n) => (
               <button key={n} className={wordCount === n ? "on" : ""} onClick={() => setWordCount(n)} role="radio" aria-checked={wordCount === n}>
-                {n} kelime
+                {n} words
               </button>
             ))}
           </div>
           <button className="btn" onClick={create} disabled={!!busy}>
-            {busy ?? "Oda kur"}
+            {busy ?? "Create room"}
           </button>
         </div>
         {busy && <p className="lede">{busy}</p>}
@@ -307,54 +318,54 @@ export default function Room({
   return (
     <>
       <div className="pmeta">
-        <span>Oda {roomId?.toString()}</span>
+        <span>Room {roomId?.toString()}</span>
         <span>
           {phase === "live"
-            ? `${idx}/${words.length} · ${left} sn`
+            ? `${idx}/${words.length} · ${left}s`
             : phase === "lobby"
-              ? `${board.length} oyuncu`
+              ? `${board.length} players`
               : phase === "over"
-                ? "bitti"
-                : "hazır"}
+                ? "finished"
+                : "ready"}
         </span>
       </div>
 
       {phase === "countdown" ? (
         <div className="takeover">
-          <span className="kicker">Başlıyor</span>
+          <span className="kicker">Starting</span>
           <div className="giant">{countdown}</div>
-          <span className="kicker">{info?.wordCount} kelime · her doğru kelime bir Monad işlemi</span>
+          <span className="kicker">{info?.wordCount} words · every correct word is a Monad transaction</span>
         </div>
       ) : (
         <div className="pbody">
           {phase === "lobby" && (
             <>
-              <span className="kicker">Oda kodu</span>
+              <span className="kicker">Room code</span>
               <div className="roomcode" lang="en">
                 {roomId?.toString()}
               </div>
               <button
                 className="btn ghost"
                 onClick={() => {
-                  if (navigator.share) navigator.share({ title: "BlitzType", text: `Oda ${roomId}`, url: shareUrl }).catch(() => {});
+                  if (navigator.share) navigator.share({ title: "BlitzType", text: `Join my BlitzType room ${roomId}`, url: shareUrl }).catch(() => {});
                   else navigator.clipboard?.writeText(shareUrl);
                 }}
               >
-                Davet linkini paylaş
+                Share invite link
               </button>
               {isHost ? (
                 <button className="btn" onClick={start} disabled={!!busy}>
-                  {busy ?? `Yarışı başlat · ${board.length} oyuncu`}
+                  {busy ?? `Start race · ${board.length} players`}
                 </button>
               ) : (
-                <p className="lede">Oda sahibi başlatınca geri sayım burada çıkacak.</p>
+                <p className="lede">The countdown appears here when the host starts.</p>
               )}
             </>
           )}
 
           {phase === "live" && me && (
             <>
-              <div className={`keys${shake ? " shake" : ""}`} aria-label={`Yazılacak kelime: ${target}`}>
+              <div className={`keys${shake ? " shake" : ""}`} aria-label={`Word to type: ${target}`}>
                 {[...target].map((ch, i) => (
                   <span key={i} className={`key${i < typed.length ? (wrongAt !== -1 && i >= wrongAt ? " miss" : " hit") : ""}`}>
                     {ch}
@@ -374,44 +385,61 @@ export default function Room({
                 autoComplete="off"
                 spellCheck={false}
                 enterKeyHint="next"
-                placeholder="yaz…"
-                aria-label="Kelimeyi yaz"
+                placeholder="type…"
+                aria-label="Type the word"
               />
               <Segments total={words.length} typed={idx} confirmed={confirmed} />
             </>
           )}
 
           {phase === "live" && me && idx >= words.length && words.length > 0 && (
-            <p className="lede">{me.rank ? `Bitirdin: ${me.rank}. sıra, ${me.blocks} blok.` : "Son kelimen zincire gidiyor…"}</p>
+            <p className="lede">{me.rank ? `Finished: #${me.rank} in ${me.blocks} blocks.` : "Your last word is on its way…"}</p>
+          )}
+
+          {winner && (
+            <div className="winner" role="dialog" aria-label="Winner" onClick={() => setWinner(null)}>
+              <div className="chequer" aria-hidden />
+              <span className="kicker">Room {roomId?.toString()} · winner</span>
+              <div className="w-name">{winner.name}</div>
+              <div className="w-stats">
+                <span>{winner.blocks} blocks</span>
+                <span>≈{((winner.blocks * ms) / 1000).toFixed(1)}s</span>
+                <span>{winner.wins} online {winner.wins === 1 ? "win" : "wins"}</span>
+              </div>
+              {winner.player.toLowerCase() === address.toLowerCase() && <div className="w-you">That's you.</div>}
+              <span className="w-tap">tap to close</span>
+            </div>
           )}
 
           {phase === "over" && (
             <div className="result">
-              <span className="kicker">Oda {roomId?.toString()} · sonuç</span>
+              <span className="kicker">Room {roomId?.toString()} · result</span>
               <div className="pos">{me?.rank || "–"}</div>
-              <h1 className="headline">{me?.rank ? `${me.blocks} blokta bitirdin` : `${me?.done ?? 0}/${info?.wordCount} kelime`}</h1>
+              <h1 className="headline">{me?.rank ? `Finished in ${me.blocks} blocks` : `${me?.done ?? 0}/${info?.wordCount} words`}</h1>
               <button className="btn" onClick={() => enter(null)}>
-                Yeni oda
+                New room
               </button>
             </div>
           )}
 
-          <ol className="board roomboard" aria-label="Oyuncular">
+          <ol className="board roomboard" aria-label="Players">
             {sorted.map((p, i) => (
               <li key={p.player} className={p.player.toLowerCase() === address.toLowerCase() ? "me" : ""}>
                 <span className="p">{phase === "lobby" ? i + 1 : p.rank || i + 1}</span>
                 <span className="n">
+                  {p.rank === 1 && phase !== "lobby" ? <i className="crown" aria-label="winner" /> : null}
                   {p.name}
                   {info && p.player.toLowerCase() === info.host.toLowerCase() ? " · host" : ""}
+                  {p.wins > 0 && <em className="wins">{p.wins}W</em>}
                 </span>
                 {phase === "lobby" ? (
-                  <span className="s">hazır</span>
+                  <span className="s">ready</span>
                 ) : (
                   <span className="mini" aria-label={`${p.done}/${info?.wordCount}`}>
                     <i style={{ width: `${(p.done / Math.max(1, info?.wordCount ?? 1)) * 100}%` }} />
                   </span>
                 )}
-                <span className="b">{p.rank ? `${p.blocks} blok` : phase === "lobby" ? "" : `${p.done}/${info?.wordCount}`}</span>
+                <span className="b">{p.rank ? `${p.blocks} blocks` : phase === "lobby" ? "" : `${p.done}/${info?.wordCount}`}</span>
               </li>
             ))}
           </ol>
@@ -419,7 +447,7 @@ export default function Room({
           {latency && phase !== "lobby" && (
             <a className="receipt" href={explorerTx(latency.hash) || undefined} target="_blank" rel="noreferrer">
               <span>
-                son kelime <b>{latency.secs.toFixed(2)} sn</b>'de blokta
+                last word in a block in <b>{latency.secs.toFixed(2)}s</b>
               </span>
               <span>#{latency.block.toString()}</span>
             </a>
@@ -427,7 +455,7 @@ export default function Room({
 
           {phase !== "live" && phase !== "over" && (
             <button className="btn ghost" onClick={() => enter(null)}>
-              Odadan çık
+              Leave room
             </button>
           )}
         </div>

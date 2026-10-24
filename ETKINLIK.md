@@ -20,7 +20,7 @@ Gönderim, Monad'ın şehir reposunun (örn. `monad-developers/monad-blitz-<şeh
 ⚠️ **10 MON rezerv kuralı:** Bakiyen 10 MON'un altındaysa, MON gönderen işlem ancak son 3 blokta başka işlem atmadıysan geçer. `npm run cards` bunu otomatik bekleyerek hallediyor. En rahatı: cüzdanda 10 MON + kart bütçesi.
 
 ## Deploy durumu (24 Eki, tamam)
-- Kontrat: `0x7740bb132eb527A16a4A8755a4e853cDAca16C2c` (Monad testnet, Sourcify "perfect")
+- Kontrat: `0xdf5F7Bd6059f88085eA8079671a7bF799284006e` (Monad testnet, Sourcify "perfect")
 - Uygulama: https://orhunerenu.github.io/monad-blitzvote./ (adres build'e gömülü, `?c=` gerekmez)
 - Organizatör cüzdanı = deploy eden cüzdan. Panelde kullanmak için: `…/#/admin/<o cüzdanın anahtarı>` (anahtar URL'den hemen silinir)
 - Modlar: **Online oda** (kur → kodu paylaş → katıl → host başlatır), **Bireysel** (geçmiş + rekor), **Sahne** (organizatör turu, projektör). Kartsız: `…/#/play`

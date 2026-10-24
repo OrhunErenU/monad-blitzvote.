@@ -96,7 +96,7 @@ export default function Admin() {
         setOrganizerOk(o.toLowerCase() === address.toLowerCase());
       }
     } catch (e) {
-      say(`Okuma hatası: ${shortErr(e)}`);
+      say(`Read error: ${shortErr(e)}`);
     }
   }, [address]);
 
@@ -113,7 +113,7 @@ export default function Admin() {
   }
 
   async function send(label: string, data: Hex, opts: { to?: Address | null; value?: bigint } = {}) {
-    if (!org || !address) throw new Error("Organizatör cüzdanı yok");
+    if (!org || !address) throw new Error("No organizer wallet");
     if (opts.value) await gapForValue();
     const est = await publicClient.estimateGas({
       account: address,
@@ -123,8 +123,8 @@ export default function Admin() {
     });
     const { receipt } = await org.sendAndConfirm(data, pad(est), opts);
     lastTx.current = Date.now();
-    if (receipt.status !== "success") throw new Error(`${label}: işlem revert oldu`);
-    say(`${label} ✓ blok #${receipt.blockNumber}`);
+    if (receipt.status !== "success") throw new Error(`${label}: transaction reverted`);
+    say(`${label} ✓ block #${receipt.blockNumber}`);
     return receipt;
   }
 
@@ -164,8 +164,8 @@ export default function Admin() {
       : null;
 
   const cards = () =>
-    run("Kartlar", async () => {
-      if (perPlayer === null) throw new Error("Ücret bilgisi yok");
+    run("Cards", async () => {
+      if (perPlayer === null) throw new Error("No fee info yet");
       const keys = Array.from({ length: players }, () => generatePrivateKey());
       const addrs = keys.map((k) => privateKeyToAccount(k).address);
       // save first: a failed tx must not lose keys
@@ -184,7 +184,7 @@ export default function Admin() {
     const imgs = await Promise.all(
       keys.map((k) => QRCode.toDataURL(`${appBase()}#/p/${k}?c=${CONFIG.address}`, { margin: 1, width: 360, errorCorrectionLevel: "M" }))
     );
-    const html = `<!doctype html><html lang="tr"><head><meta charset="utf-8"><title>BlitzType kartları</title><style>
+    const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>BlitzType cards</title><style>
 @page{size:A4;margin:10mm}body{font-family:system-ui,sans-serif;margin:0;color:#111}
 .g{display:grid;grid-template-columns:repeat(3,1fr);gap:5mm}.c{border:1.5px solid #111;padding:4mm;text-align:center;break-inside:avoid}
 .t{display:flex;justify-content:space-between;font:800 11pt system-ui;letter-spacing:.06em}.t span{color:#888;font-weight:600}
@@ -193,7 +193,7 @@ img{width:100%;max-width:46mm;display:block;margin:2mm auto}.h{font-size:8.5pt;c
 </style></head><body><div class="g">${keys
       .map(
         (k, i) =>
-          `<div class="c"><div class="bar"></div><div class="t">BLITZTYPE<span>#${offset + i + 1}</span></div><img src="${imgs[i]}"/><div class="h">Okut · adını yaz · yarış başlayınca yaz</div><div class="a">${privateKeyToAccount(k).address.slice(0, 6)}…${privateKeyToAccount(k).address.slice(-4)}</div></div>`
+          `<div class="c"><div class="bar"></div><div class="t">BLITZTYPE<span>#${offset + i + 1}</span></div><img src="${imgs[i]}"/><div class="h">Scan · pick a name · type</div><div class="a">${privateKeyToAccount(k).address.slice(0, 6)}…${privateKeyToAccount(k).address.slice(-4)}</div></div>`
       )
       .join("")}</div><script>setTimeout(()=>print(),400)</script></body></html>`;
     const blob = new Blob([html], { type: "text/html" });
@@ -205,13 +205,13 @@ img{width:100%;max-width:46mm;display:block;margin:2mm auto}.h{font-size:8.5pt;c
       a.download = "blitztype-kartlar.html";
       a.click();
     }
-    say(`${keys.length} kart hazır (yazdırma sayfası açıldı)`);
+    say(`${keys.length} cards ready (print page opened)`);
   }
 
   const reprint = () =>
-    run("Yeniden yazdır", async () => {
+    run("Reprint", async () => {
       const all: Hex[] = JSON.parse(localStorage.getItem(CARDS_KEY) || "[]");
-      if (!all.length) throw new Error("Bu tarayıcıda kart yok");
+      if (!all.length) throw new Error("No cards in this browser");
       await printCards(all);
     });
 
@@ -230,12 +230,12 @@ img{width:100%;max-width:46mm;display:block;margin:2mm auto}.h{font-size:8.5pt;c
   }
 
   const startRound = () =>
-    run("Tur", async () => {
+    run("Round", async () => {
       const ms = await blockMs();
       const delay = BigInt(Math.max(1, Math.round((countdown * 1000) / ms)));
       const dur = BigInt(Math.max(1, Math.round((seconds * 1000) / ms)));
       const list = pickWords(roundWords);
-      await send(`Tur başladı (${list.length} kelime, ~${Math.round(ms)} ms/blok)`, encodeFunctionData({
+      await send(`Round started (${list.length} words, ~${Math.round(ms)} ms/block)`, encodeFunctionData({
         abi: blitzTypeAbi,
         functionName: "startRound",
         args: [list, delay, dur],
@@ -244,20 +244,20 @@ img{width:100%;max-width:46mm;display:block;margin:2mm auto}.h{font-size:8.5pt;c
 
   const endRound = () =>
     run("Bitir", async () => {
-      await send("Tur bitirildi", encodeFunctionData({ abi: blitzTypeAbi, functionName: "endRound" }));
+      await send("Round ended", encodeFunctionData({ abi: blitzTypeAbi, functionName: "endRound" }));
     });
 
   // ------------------------------------------------------------------- bots
   const [bots, setBots] = useState(12);
   const botsRace = () =>
-    run("Botlar", async () => {
-      if (!st || st.round === 0) throw new Error("Önce tur başlat");
-      if (price === null) throw new Error("Ücret bilgisi yok");
+    run("Bots", async () => {
+      if (!st || st.round === 0) throw new Error("Start a round first");
+      if (price === null) throw new Error("No fee info yet");
       const list = await readWords(st.round, st.startedAt);
       const keys = Array.from({ length: bots }, () => generatePrivateKey());
       const accts = keys.map((k) => privateKeyToAccount(k));
       const each = (price * (NAME_GAS + BigInt(list.length - 1) * WORD_GAS + FINISH_GAS) * 12n) / 10n;
-      await send(`${bots} bot fonlandı`, encodeFunctionData({ abi: blitzTypeAbi, functionName: "fund", args: [accts.map((a) => a.address)] }), {
+      await send(`${bots} bots funded`, encodeFunctionData({ abi: blitzTypeAbi, functionName: "fund", args: [accts.map((a) => a.address)] }), {
         value: each * BigInt(bots),
       });
       const burners = keys.map((k) => makeBurner(k));
@@ -275,7 +275,7 @@ img{width:100%;max-width:46mm;display:block;margin:2mm auto}.h{font-size:8.5pt;c
       const wordGas = pad(
         await publicClient.estimateContractGas({ ...contract, functionName: "typeWord", args: [list[0]], account: accts[0].address })
       );
-      say(`Botlar yazıyor (kelime gas limiti ${wordGas})`);
+      say(`Bots typing (word gas limit ${wordGas})`);
       const ms = await blockMs();
       const head = await publicClient.getBlockNumber({ cacheTime: 0 });
       const endAt = Date.now() + Number(st.endBlock - head) * ms;
@@ -319,22 +319,22 @@ img{width:100%;max-width:46mm;display:block;margin:2mm auto}.h{font-size:8.5pt;c
         <span className="wordmark" lang="en">
           BlitzType<span className="cur" />
         </span>
-        <span className="status">Organizatör</span>
+        <span className="status">Organizer</span>
       </header>
 
       {!pk ? (
         <section className="adm">
-          <span className="kicker">Adım 1</span>
-          <h1 className="headline">Organizatör cüzdanı</h1>
-          <p className="lede">Bu tarayıcıda yeni bir cüzdan oluşturulur; anahtar cihazından çıkmaz. Sonra ona test MON gönderirsin.</p>
+          <span className="kicker">Step 1</span>
+          <h1 className="headline">Organizer wallet</h1>
+          <p className="lede">A new wallet is created in this browser; the key never leaves this device. Then send it testnet MON.</p>
           <button className="btn" onClick={newWallet}>
-            Cüzdan oluştur
+            Create wallet
           </button>
         </section>
       ) : (
         <>
           <section className="adm">
-            <span className="kicker">Cüzdan</span>
+            <span className="kicker">Wallet</span>
             <div className="kv">
               <span>Adres</span>
               <button className="copy mono" onClick={() => navigator.clipboard?.writeText(address!)}>
@@ -346,16 +346,16 @@ img{width:100%;max-width:46mm;display:block;margin:2mm auto}.h{font-size:8.5pt;c
               <b className="mono">{balance === null ? "…" : `${Number(formatEther(balance)).toFixed(4)} MON`}</b>
             </div>
             <div className="kv">
-              <span>Taban ücret</span>
+              <span>Base fee</span>
               <span className="mono">{baseFee === null ? "…" : `${Number(formatUnits(baseFee, 9)).toFixed(1)} gwei`}</span>
             </div>
             <p className="note">
               MON al: <a href="https://faucet.monad.xyz" target="_blank" rel="noreferrer">faucet.monad.xyz</a> ·{" "}
-              <a href="https://blitz.devnads.com" target="_blank" rel="noreferrer">blitz.devnads.com</a> → bu adrese gönder.
-              {lowReserve && " Bakiye 10 MON altında: Monad'ın rezerv kuralı yüzünden MON gönderen işlemler arasında birkaç saniye bekleniyor."}
+              <a href="https://blitz.devnads.com" target="_blank" rel="noreferrer">blitz.devnads.com</a> → send to this address.
+              {lowReserve && " Balance is under 10 MON: because of Monad's reserve rule, MON-sending transactions are spaced a few seconds apart."}
             </p>
             <button className="link-btn" onClick={() => setShowKey((v) => !v)}>
-              {showKey ? "Anahtarı gizle" : "Anahtarı yedekle (göster)"}
+              {showKey ? "Hide key" : "Back up key (show)"}
             </button>
             {showKey && <code className="keybox mono">{pk}</code>}
           </section>
@@ -364,9 +364,9 @@ img{width:100%;max-width:46mm;display:block;margin:2mm auto}.h{font-size:8.5pt;c
             <span className="kicker">Kontrat</span>
             {CONFIG.address === ZERO ? (
               <>
-                <input className="field sm" value={eventName} onChange={(e) => setEventName(e.target.value)} aria-label="Etkinlik adı" />
+                <input className="field sm" value={eventName} onChange={(e) => setEventName(e.target.value)} aria-label="Event name" />
                 <button className="btn" disabled={!!busy || !balance} onClick={deploy}>
-                  {busy === "Deploy" ? "Deploy ediliyor…" : "BlitzType'ı deploy et"}
+                  {busy === "Deploy" ? "Deploying…" : "Deploy BlitzType"}
                 </button>
               </>
             ) : (
@@ -377,15 +377,15 @@ img{width:100%;max-width:46mm;display:block;margin:2mm auto}.h{font-size:8.5pt;c
                     {CONFIG.address.slice(0, 10)}…{CONFIG.address.slice(-6)}
                   </a>
                 </div>
-                {organizerOk === false && <p className="err">Bu cüzdan bu kontratın organizatörü değil.</p>}
+                {organizerOk === false && <p className="err">This wallet is not the organizer of this contract.</p>}
                 <div className="kv">
-                  <span>Projektör</span>
+                  <span>Projector</span>
                   <button className="copy mono" onClick={() => navigator.clipboard?.writeText(screenUrl)}>
                     linki kopyala
                   </button>
                 </div>
                 <a className="link-btn" href={`#/screen?c=${CONFIG.address}`}>
-                  Projektör ekranını aç →
+                  Open projector screen →
                 </a>
               </>
             )}
@@ -394,64 +394,64 @@ img{width:100%;max-width:46mm;display:block;margin:2mm auto}.h{font-size:8.5pt;c
           {CONFIG.address !== ZERO && (
             <>
               <section className="adm">
-                <span className="kicker">Kartlar</span>
+                <span className="kicker">Cards</span>
                 <div className="grid3 g4">
                   <label>
-                    Kişi
+                    Players
                     <input className="field sm" type="number" min={1} value={players} onChange={(e) => setPlayers(+e.target.value || 1)} />
                   </label>
                   <label>
-                    Tur
+                    Rounds
                     <input className="field sm" type="number" min={1} value={rounds} onChange={(e) => setRounds(+e.target.value || 1)} />
                   </label>
                   <label>
-                    Kelime
+                    Words
                     <input className="field sm" type="number" min={2} max={32} value={words} onChange={(e) => setWords(+e.target.value || 2)} />
                   </label>
                   <label>
-                    Bireysel
+                    Solo runs
                     <input className="field sm" type="number" min={0} value={soloRuns} onChange={(e) => setSoloRuns(Math.max(0, +e.target.value || 0))} />
                   </label>
                 </div>
                 <p className="note">
-                  Kart başı ≈ {perPlayer === null ? "…" : Number(formatEther(perPlayer)).toFixed(4)} MON · toplam ≈{" "}
+                  Per card ≈ {perPlayer === null ? "…" : Number(formatEther(perPlayer)).toFixed(4)} MON · total ≈{" "}
                   {perPlayer === null ? "…" : Number(formatEther(perPlayer * BigInt(players))).toFixed(3)} MON
                 </p>
                 <button className="btn" disabled={!!busy} onClick={cards}>
-                  {busy === "Kartlar" ? "Fonlanıyor…" : "Kartları üret, fonla, yazdır"}
+                  {busy === "Cards" ? "Funding…" : "Make, fund and print cards"}
                 </button>
                 <button className="link-btn" disabled={!!busy} onClick={reprint}>
-                  Bu tarayıcıdaki kartları yeniden yazdır
+                  Reprint the cards in this browser
                 </button>
               </section>
 
               <section className="adm">
-                <span className="kicker">Tur {st?.round ? `· şu an #${st.round}${roundLive ? " (açık)" : " (bitti)"}` : ""}</span>
+                <span className="kicker">Stage round {st?.round ? `· now #${st.round}${roundLive ? " (open)" : " (over)"}` : ""}</span>
                 <div className="grid3">
                   <label>
-                    Kelime
+                    Words
                     <input className="field sm" type="number" min={2} max={32} value={roundWords} onChange={(e) => setRoundWords(+e.target.value || 2)} />
                   </label>
                   <label>
-                    Süre sn
+                    Seconds
                     <input className="field sm" type="number" min={10} value={seconds} onChange={(e) => setSeconds(+e.target.value || 10)} />
                   </label>
                   <label>
-                    Geri sayım
+                    Countdown
                     <input className="field sm" type="number" min={1} value={countdown} onChange={(e) => setCountdown(+e.target.value || 1)} />
                   </label>
                 </div>
                 <button className="btn" disabled={!!busy || roundLive} onClick={startRound}>
-                  {busy === "Tur" ? "Başlatılıyor…" : "Turu başlat"}
+                  {busy === "Round" ? "Starting…" : "Start round"}
                 </button>
                 <button className="link-btn" disabled={!!busy || !roundLive} onClick={endRound}>
-                  Turu şimdi bitir
+                  End round now
                 </button>
               </section>
 
               <section className="adm">
-                <span className="kicker">Bot yarışçılar</span>
-                <p className="note">Salon az ise ya da yük göstermek için: yeni cüzdanlar üretilir, fonlanır ve insan hızında yazar.</p>
+                <span className="kicker">Bot racers</span>
+                <p className="note">For a quiet room or a load demo: fresh wallets are created, funded, and type at human speed.</p>
                 <div className="grid3">
                   <label>
                     Bot
@@ -459,20 +459,20 @@ img{width:100%;max-width:46mm;display:block;margin:2mm auto}.h{font-size:8.5pt;c
                   </label>
                 </div>
                 <button className="btn" disabled={!!busy || !roundLive} onClick={botsRace}>
-                  {busy === "Botlar" ? "Botlar yarışıyor…" : "Botları yarıştır"}
+                  {busy === "Bots" ? "Bots racing…" : "Race bots"}
                 </button>
               </section>
             </>
           )}
 
           <section className="adm">
-            <span className="kicker">Kayıt</span>
+            <span className="kicker">Log</span>
             <ol className="log mono">
               {busy && <li>{busy}…</li>}
               {log.map((l, i) => (
                 <li key={i}>{l}</li>
               ))}
-              {!log.length && !busy && <li className="dim">Henüz işlem yok</li>}
+              {!log.length && !busy && <li className="dim">No transactions yet</li>}
             </ol>
           </section>
         </>

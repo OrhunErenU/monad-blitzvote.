@@ -223,7 +223,7 @@ export default function Race() {
   // between room rounds the projector shows the solo records
   const showSolo = phase === "idle" || (phase === "over" && st !== null && now - st.endBlock > 150n);
   const statusLabel =
-    phase === "idle" ? "Bekleniyor" : phase === "countdown" ? "Geri sayım" : phase === "live" ? "Canlı" : "Bitti";
+    phase === "idle" ? "Waiting" : phase === "countdown" ? "Countdown" : phase === "live" ? "Live" : "Over";
 
   return (
     <div className="screen">
@@ -234,40 +234,40 @@ export default function Race() {
           </span>
         </div>
         <div className="ev" lang="en">{eventName}</div>
-        <div className="rnd">{st?.round ? `Tur ${st.round}` : "—"}</div>
+        <div className="rnd">{st?.round ? `Round ${st.round}` : "—"}</div>
         <div className={`st ${phase}`}>{statusLabel}</div>
       </header>
 
       {phase === "countdown" ? (
         <main className="s-take">
           <div>
-            <div className="sub">Başlıyor · {total} kelime</div>
+            <div className="sub">Starting · {total} words</div>
             <div className="giant">{countdown}</div>
-            <div className="sub">Her doğru kelime bir Monad işlemi · sırayı zincir belirler</div>
+            <div className="sub">Every correct word is a Monad transaction · the chain decides the order</div>
           </div>
         </main>
       ) : (
         <main className="sgrid">
           {showSolo ? (
-            <section className="tower solo-board" aria-label="Bireysel rekorlar">
+            <section className="tower solo-board" aria-label="Solo records">
               <div className="thead">
-                <span>Sıra</span>
-                <span>Bireysel test · 15 kelime</span>
-                <span>Süre</span>
+                <span>Pos</span>
+                <span>Solo test · 15 words</span>
+                <span>Time</span>
                 <span style={{ textAlign: "right" }}>Blok</span>
               </div>
               {soloTop.map((t, i) => (
                 <div key={t.player} className={`trow${i === 0 ? " leader" : ""}`}>
                   <span className="p">{i + 1}</span>
                   <span className="n">{t.name}</span>
-                  <span className="t mono">≈{((t.best * ms) / 1000).toFixed(1)} sn</span>
-                  <span className="g">{t.best} blok</span>
+                  <span className="t mono">≈{((t.best * ms) / 1000).toFixed(1)}s</span>
+                  <span className="g">{t.best} blocks</span>
                 </div>
               ))}
-              {soloTop.length === 0 && <div className="tempty">Bireysel rekor yok · telefondan “Bireysel test”</div>}
+              {soloTop.length === 0 && <div className="tempty">No solo records yet · play “Solo” on your phone</div>}
             </section>
           ) : (
-          <section className="tower" aria-label="Sıralama">
+          <section className="tower" aria-label="Standings">
             {phase === "over" && podium.length > 0 && (
               <div className="podium">
                 <div className="chequer" aria-hidden />
@@ -276,17 +276,17 @@ export default function Race() {
                     <div key={p.k} className={`pr${p.rank === 1 ? " first" : ""}`}>
                       <span className="k1">{p.rank}</span>
                       <span className="nm">{label(p.k)}</span>
-                      <span className="bk">{p.blocks} blok</span>
+                      <span className="bk">{p.blocks} blocks</span>
                     </div>
                   ))}
                 </div>
               </div>
             )}
             <div className="thead">
-              <span>Sıra</span>
-              <span>Yarışçı · {lanes.length}</span>
-              <span>Kelimeler</span>
-              <span style={{ textAlign: "right" }}>Fark</span>
+              <span>Pos</span>
+              <span>Racers · {lanes.length}</span>
+              <span>Words</span>
+              <span style={{ textAlign: "right" }}>Gap</span>
             </div>
             {lanes.slice(0, phase === "over" && podium.length ? LANES - 4 : LANES).map((p, i) => (
               <div key={p.k} className={`trow${i === 0 && phase === "live" ? " leader" : ""}${p.rank ? " fin" : ""}`}>
@@ -298,31 +298,31 @@ export default function Race() {
                   ))}
                 </span>
                 <span className={`g${p.rank ? " fin" : ""}`}>
-                  {p.rank ? `${p.blocks} blok` : i === 0 ? `${p.done}/${total}` : `−${leaderDone - p.done}`}
+                  {p.rank ? `${p.blocks} blocks` : i === 0 ? `${p.done}/${total}` : `−${leaderDone - p.done}`}
                 </span>
               </div>
             ))}
-            {lanes.length === 0 && <div className="tempty">İlk kelime bekleniyor…</div>}
+            {lanes.length === 0 && <div className="tempty">Waiting for the first word…</div>}
           </section>
           )}
 
           <section className="telemetry">
             <div className="tele-top">
-              <span className="kicker">{showSolo ? "Zincire yazılan kelime · bu ekran açıkken" : "Bu turda zincire yazılan kelime"}</span>
+              <span className="kicker">{showSolo ? "Words written on-chain · since this screen opened" : "Words written on-chain this round"}</span>
               <div className="bignum">{txCount.toLocaleString("tr-TR")}</div>
             </div>
             <div className="metrics">
               <div>
                 <div className="v">{tps.toFixed(1)}</div>
-                <div className="k">tx / sn</div>
+                <div className="k">tx / s</div>
               </div>
               <div>
                 <div className="v">{record}</div>
-                <div className="k">blok başına rekor</div>
+                <div className="k">record per block</div>
               </div>
               <div>
-                <div className="v">{phase === "live" ? `${left} sn` : `#${head.toString()}`}</div>
-                <div className="k">{phase === "live" ? "kalan süre" : "blok"}</div>
+                <div className="v">{phase === "live" ? `${left}s` : `#${head.toString()}`}</div>
+                <div className="k">{phase === "live" ? "time left" : "block"}</div>
               </div>
             </div>
             <div className="strip" aria-hidden>
@@ -338,8 +338,8 @@ export default function Race() {
                 ))}
               </div>
               <div className="cap">
-                <span>Her sütun bir Monad bloğu · ~{Math.round(ms)} ms</span>
-                <span>blok #{head.toString()}</span>
+                <span>Each column is one Monad block · ~{Math.round(ms)} ms</span>
+                <span>block #{head.toString()}</span>
               </div>
             </div>
             {words.length > 0 && <div className="wordline">{words.join("  ")}</div>}
@@ -350,7 +350,7 @@ export default function Race() {
       <footer className="sfoot">
         <span className="onmonad" lang="en">on Monad testnet</span>
         <span className="addr">{CONFIG.address}</span>
-        <span>F · tam ekran</span>
+        <span>F · fullscreen</span>
       </footer>
     </div>
   );

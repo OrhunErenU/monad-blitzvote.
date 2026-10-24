@@ -1,10 +1,8 @@
 import {
   createPublicClient,
   defineChain,
-  encodeAbiParameters,
   encodeFunctionData,
   fallback,
-  keccak256,
   http,
   type Address,
   type Hex,
@@ -296,13 +294,13 @@ export async function readSoloTop(): Promise<SoloEntry[]> {
   return players.map((p, i) => ({ player: p, best: Number(best[i]), name: names[i] || `${p.slice(0, 6)}…` }));
 }
 
-/** Same derivation as BlitzType.soloWordIndex: keccak256(abi.encode(seed, i)) % pool.length. */
+/** Same walk as BlitzType.soloWordIndex: seed-chosen start and stride over a prime-sized pool → no repeats. */
 export function soloWords(seed: Hex, pool: readonly string[], count: number): string[] {
   const n = BigInt(pool.length);
-  return Array.from({ length: count }, (_, i) => {
-    const h = keccak256(encodeAbiParameters([{ type: "bytes32" }, { type: "uint256" }], [seed, BigInt(i)]));
-    return pool[Number(BigInt(h) % n)];
-  });
+  const x = BigInt(seed);
+  const start = x % n;
+  const step = 1n + (x >> 128n) % (n - 1n);
+  return Array.from({ length: count }, (_, i) => pool[Number((start + BigInt(i) * step) % n)]);
 }
 
 export const encodeCreateRoom = (words: number) => encodeFunctionData({ abi: blitzTypeAbi, functionName: "createRoom", args: [words] });
@@ -321,7 +319,7 @@ export type RoomInfo = {
   finishers: number;
   blockNumber: bigint;
 };
-export type RoomPlayer = { player: Address; name: string; done: number; rank: number; blocks: number };
+export type RoomPlayer = { player: Address; name: string; done: number; rank: number; blocks: number; wins: number };
 
 /** Room header + everyone's progress in one multicall round-trip. */
 export async function readRoom(id: bigint): Promise<{ info: RoomInfo; board: RoomPlayer[] }> {
@@ -331,10 +329,10 @@ export async function readRoom(id: bigint): Promise<{ info: RoomInfo; board: Roo
   ]);
   const [host, seed, startBlock, endBlock, wordCount, players, finishers, blockNumber] = r;
   const [addrs, names, done, rank, blocks] = b;
-  // roomBoard packs a "joined" flag into bit 31 of `blocks`; mask it off
+  const wins = await Promise.all(addrs.map((a) => publicClient.readContract({ ...contract, functionName: "roomWins", args: [a] }).catch(() => 0)));
   return {
     info: { host, seed, startBlock, endBlock, wordCount: Number(wordCount), players: Number(players), finishers: Number(finishers), blockNumber },
-    board: addrs.map((a, i) => ({ player: a, name: names[i] || `${a.slice(0, 6)}…`, done: Number(done[i]), rank: Number(rank[i]), blocks: Number(blocks[i]) & 0x7fffffff })),
+    board: addrs.map((a, i) => ({ player: a, name: names[i] || `${a.slice(0, 6)}…`, done: Number(done[i]), rank: Number(rank[i]), blocks: Number(blocks[i]), wins: Number(wins[i]) })),
   };
 }
 
@@ -378,22 +376,22 @@ export function shortErr(e: unknown): string {
   const any = e as { shortMessage?: string; message?: string; cause?: { data?: { errorName?: string } } };
   const name = any?.cause?.data?.errorName;
   const map: Record<string, string> = {
-    WrongWord: "Kelime zincirdekiyle eşleşmedi.",
-    NotStarted: "Tur henüz başlamadı.",
-    RoundOver: "Süre doldu.",
-    AlreadyFinished: "Bu turu zaten bitirdin.",
-    BadName: "İsim 1–16 karakter olmalı.",
-    NoSolo: "Önce bireysel testi başlat.",
-    NoRoom: "Bu kodla oda yok.",
-    RoomStarted: "Bu oda yarışa başlamış, yenisine katıl.",
-    RoomFull: "Oda dolu.",
-    NotHost: "Yarışı sadece oda sahibi başlatabilir.",
-    NotJoined: "Bu odada değilsin.",
+    WrongWord: "That word doesn't match the chain.",
+    NotStarted: "Not started yet.",
+    RoundOver: "Time's up.",
+    AlreadyFinished: "You already finished.",
+    BadName: "Name must be 1–16 characters.",
+    NoSolo: "Start a solo run first.",
+    NoRoom: "No room with that code.",
+    RoomStarted: "That room already started. Join another one.",
+    RoomFull: "Room is full.",
+    NotHost: "Only the host can start the race.",
+    NotJoined: "You're not in this room.",
   };
   if (name && map[name]) return map[name];
   const msg = any?.shortMessage || any?.message || String(e);
   for (const k of Object.keys(map)) if (msg.includes(k)) return map[k];
-  if (/insufficient funds|insufficient balance/i.test(msg)) return "Kartın gas bakiyesi bitti — görevliye söyle.";
-  if (/429|rate limit|too many/i.test(msg)) return "Ağ şu an yoğun, birkaç saniye sonra tekrar dene.";
+  if (/insufficient funds|insufficient balance/i.test(msg)) return "Out of gas money. Top up this wallet with testnet MON.";
+  if (/429|rate limit|too many/i.test(msg)) return "Network is busy, try again in a few seconds.";
   return msg.split("\n")[0].slice(0, 140);
 }

@@ -1,19 +1,26 @@
-// Türkçe, sadece ASCII (ç/ş/ğ/ı/ö/ü yok): telefon klavyesi ve otomatik düzeltme sorun çıkarmasın.
-// Hepsi küçük harf; kontrat birebir eşleşme ister.
+// English, lowercase ASCII. The pool size MUST be prime: the contract walks it with a
+// seed-chosen stride, which only visits distinct words when the size is prime.
 export const WORDS = (
-  "monad blok zincir hizli kod deniz kalem masa kitap bulut ankara tren yol hava gece sabah " +
-  "kahve demo takim ekip fikir proje oyun klavye ekran sinyal kontrat cuzdan imza paralel " +
-  "zaman saat dakika saniye kelime harf satir sayfa defter renk mavi mor beyaz siyah yesil " +
-  "elma armut karpuz limon portakal kiraz ekmek peynir zeytin bal su ates toprak ruzgar " +
-  "dag tepe vadi nehir gol orman agac yaprak cicek kedi kopek kus balik at aslan kartal " +
-  "kale kapi pencere duvar cati merdiven bina sokak park meydan liman kopru tunel " +
-  "hizmet ag dugum lider oylama sira kuyruk paket mesaj cevap soru sonuc hedef plan " +
-  "yildiz gunes ay dunya uzay roket motor teker hiz enerji batarya devre kablo anten radar " +
-  "basla bitir yaz gonder onay kazan kosu tur final rekor puan seviye bonus kombo"
+  "time year people way day man thing woman life child world school state family student " +
+  "group country problem hand part place case week company system program question work " +
+  "government number night point home water room mother area money story fact month lot " +
+  "right study book eye job word business issue side kind head house service friend father " +
+  "power hour game line end member law car city community name president team minute idea " +
+  "kid body information back parent face others level office door health person art war " +
+  "history party result change morning reason research girl guy moment air teacher force " +
+  "education foot boy age policy music market sense nation plan college interest death " +
+  "course someone experience effort table space light river ocean forest mountain green " +
+  "blue yellow orange purple silver gold stone glass paper pencil window garden bread apple " +
+  "lemon cherry coffee sugar honey cloud storm thunder winter summer spring autumn rocket " +
+  "planet orbit signal battery engine wheel bridge tunnel castle island desert valley tiger " +
+  "eagle shark horse rabbit dragon pixel token block chain miner node ledger wallet speed " +
+  "quick fast swift rapid sprint race final record score bonus combo crown trophy medal " +
+  "winner player keyboard screen mouse cable laptop network packet socket thread proxy " +
+  "cache folder button method object string vector "
 ).split(/\s+/).filter(Boolean);
 
 export function pickWords(n: number, seed = Date.now()): string[] {
-  // küçük deterministik PRNG (mulberry32) — tekrar yok
+  // small deterministic PRNG (mulberry32), no repeats
   let a = seed >>> 0;
   const rnd = () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -30,5 +37,5 @@ export function pickWords(n: number, seed = Date.now()): string[] {
   return pool.slice(0, n);
 }
 
-/// Solo-mode pool: passed to the BlitzType constructor in this exact order. Changing it needs a redeploy.
+/// Solo/room pool: passed to the BlitzType constructor in this exact order. Changing it needs a redeploy.
 export const SOLO_POOL: string[] = [...new Set(WORDS)];

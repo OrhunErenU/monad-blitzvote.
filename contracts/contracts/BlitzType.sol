@@ -74,8 +74,10 @@ contract BlitzType {
     uint256 public lastRoom = 1000; // room codes start at 1001
     mapping(uint256 => Room) private _rooms;
     mapping(uint256 => address[]) private _roomPlayers;
-    /// room => player => done | rank << 16 | blocksTaken << 32 | joined << 63
+    /// room => player => done | rank << 16 | blocksTaken << 32 | joined << 255
     mapping(uint256 => mapping(address => uint256)) private _roomProg;
+    /// online rooms won (rank 1) per player
+    mapping(address => uint32) public roomWins;
 
     event RoundStarted(uint256 indexed round, uint64 startBlock, uint64 endBlock, string[] words);
     event Typed(uint256 indexed round, address indexed player, uint256 wordIndex);
@@ -249,7 +251,7 @@ contract BlitzType {
 
     // ------------------------------------------------------------------ rooms
 
-    uint256 private constant JOINED = 1 << 63;
+    uint256 private constant JOINED = 1 << 255;
 
     /// @notice Open a room; you are its host and first player. Share the returned code.
     function createRoom(uint8 wordCount) external returns (uint256 id) {
@@ -316,6 +318,11 @@ contract BlitzType {
             }
             uint256 blocks = block.number - r.startBlock + 1;
             _roomProg[id][msg.sender] = JOINED | (blocks << 32) | (rank << 16) | done;
+            if (rank == 1) {
+                unchecked {
+                    ++roomWins[msg.sender];
+                }
+            }
             emit RoomFinished(id, msg.sender, rank, blocks);
         } else {
             _roomProg[id][msg.sender] = JOINED | done;
@@ -396,9 +403,15 @@ contract BlitzType {
         _top[pos] = player;
     }
 
-    /// @notice Pool index of word `i` in a solo run with `seed`. Clients compute the same thing locally.
+    /// @notice Pool index of word `i` for a run/room with `seed`. Clients compute the same thing locally.
+    /// @dev Walks the pool with a seed-chosen start and stride. The pool size is prime, so the first
+    ///      pool.length words of a run are all different: no word repeats inside a run or a room.
     function soloWordIndex(bytes32 seed, uint256 i) public view returns (uint256) {
-        return uint256(keccak256(abi.encode(seed, i))) % _pool.length;
+        uint256 n = _pool.length;
+        uint256 x = uint256(seed);
+        uint256 start = x % n;
+        uint256 step = 1 + (x >> 128) % (n - 1);
+        return (start + i * step) % n;
     }
 
     function poolSize() external view returns (uint256) {
