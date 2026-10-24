@@ -15,7 +15,7 @@ The organizer starts a round with a list of words. Everyone in the room scans a 
 | | |
 |---|---|
 | Contract | `contracts/contracts/BlitzType.sol` on Monad Testnet (chain 10143) |
-| Live app | https://orhunerenu.github.io/monad-blitzvote./ (opens straight into the game; a wallet is created in the browser) · QR card: `/#/p/<card>` · invite: `/#/?room=<code>` · projector: `/#/screen` · organizer: `/#/admin` |
+| Live app | https://blitztype.xyz (opens straight into the game; a wallet is created in the browser) · QR card: `/#/p/<card>` · invite: `/#/?room=<code>` · projector: `/#/screen` · organizer: `/#/admin` |
 | Contract address | [`0xdf5F7Bd6059f88085eA8079671a7bF799284006e`](https://testnet.monadvision.com/address/0xdf5F7Bd6059f88085eA8079671a7bF799284006e) (verified, Sourcify "perfect") |
 
 ## Why it needs the chain

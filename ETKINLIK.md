@@ -21,12 +21,12 @@ Gönderim, Monad'ın şehir reposunun (örn. `monad-developers/monad-blitz-<şeh
 
 ## Deploy durumu (24 Eki, tamam)
 - Kontrat: `0xdf5F7Bd6059f88085eA8079671a7bF799284006e` (Monad testnet, Sourcify "perfect")
-- Uygulama: https://orhunerenu.github.io/monad-blitzvote./ (adres build'e gömülü, `?c=` gerekmez)
+- Uygulama: https://blitztype.xyz (adres build'e gömülü, `?c=` gerekmez)
 - Organizatör cüzdanı = deploy eden cüzdan. Panelde kullanmak için: `…/#/admin/<o cüzdanın anahtarı>` (anahtar URL'den hemen silinir)
 - Modlar: **Online oda** (kur → kodu paylaş → katıl → host başlatır), **Bireysel** (geçmiş + rekor), **Sahne** (organizatör turu, projektör). Kartsız: `…/#/play`
 
 ## En hızlı yol: telefondan organizatör paneli
-1. **(Tek seferlik)** GitHub → repo → **Settings → Pages → Source: GitHub Actions**. Ardından Actions sekmesinde "Deploy app to GitHub Pages" workflow'unu çalıştır (ya da bir push bekle). Uygulama adresi: `https://orhunerenu.github.io/monad-blitzvote./`
+1. **(Tek seferlik)** GitHub → repo → **Settings → Pages → Source: GitHub Actions**. Ardından Actions sekmesinde "Deploy app to GitHub Pages" workflow'unu çalıştır (ya da bir push bekle). Uygulama adresi: `https://blitztype.xyz`
 2. Telefondan `…/#/admin` → **Cüzdan oluştur** → gösterilen adrese faucet / blitz.devnads.com'dan MON gönder. Anahtarı **yedekle** (gerekirse başka cihaza `#/admin/<anahtar>` ile taşınır).
 3. **BlitzType'ı deploy et** → kontrat adresi panelde. Bunu teslim formuna ve README'ye yaz.
 4. **Kartlar**: kişi / tur / kelime / bireysel → *Kartları üret, fonla, yazdır*. Yazdırma sayfası açılır. "Bireysel" kart başı kaç bireysel test hakkı fonlanacağı (tur başı ~0,13 MON).
