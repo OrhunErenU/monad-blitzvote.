@@ -1,37 +1,69 @@
 import {
   createPublicClient,
-  createWalletClient,
   defineChain,
+  encodeFunctionData,
+  fallback,
   http,
   type Address,
   type Hex,
+  type TransactionReceipt,
 } from "viem";
-import { nonceManager, privateKeyToAccount } from "viem/accounts";
+import { privateKeyToAccount } from "viem/accounts";
 import { blitzVoteAbi } from "./abi";
 import deployment from "./deployment.json";
 
 const env = import.meta.env;
+const chainId = Number(env.VITE_CHAIN_ID || deployment.chainId);
+const isMonadTestnet = chainId === 10143;
+
+// Monad testnet public RPCs (docs.monad.xyz/developer-essentials/testnet):
+//   QuickNode 50 rps (25 rps eth_call/estimateGas) · Ankr 300 req/10 s · Monad Foundation 20 rps, no batching.
+// A room of phones on the same Wi-Fi shares one IP, so each device picks a random primary and falls back to the rest.
+const MONAD_TESTNET_RPCS = [
+  "https://testnet-rpc.monad.xyz",
+  "https://rpc.ankr.com/monad_testnet",
+  "https://rpc-testnet.monadinfra.com",
+];
+const NO_BATCH = ["monadinfra.com"];
+
+function rpcList(): string[] {
+  if (env.VITE_RPC_URLS) return String(env.VITE_RPC_URLS).split(",").map((s) => s.trim()).filter(Boolean);
+  if (env.VITE_RPC_URL) return [String(env.VITE_RPC_URL)];
+  if (isMonadTestnet) return MONAD_TESTNET_RPCS;
+  return [deployment.rpcUrl];
+}
+
+const rpcs = rpcList();
+const primary = Math.floor(Math.random() * rpcs.length);
+const ordered = [...rpcs.slice(primary), ...rpcs.slice(0, primary)];
 
 export const CONFIG = {
   address: (env.VITE_BLITZVOTE_ADDRESS || deployment.address) as Address,
-  rpcUrl: (env.VITE_RPC_URL || deployment.rpcUrl) as string,
-  chainId: Number(env.VITE_CHAIN_ID || deployment.chainId),
+  chainId,
+  rpcs: ordered,
   deployBlock: BigInt(env.VITE_DEPLOY_BLOCK || deployment.deployBlock || 0),
-  explorer: (env.VITE_EXPLORER_URL ||
-    (Number(env.VITE_CHAIN_ID || deployment.chainId) === 10143 ? "https://testnet.monadexplorer.com" : "")) as string,
+  explorer: (env.VITE_EXPLORER_URL || (isMonadTestnet ? "https://testnet.monadvision.com" : "")) as string,
 };
 
 export const chain = defineChain({
   id: CONFIG.chainId,
-  name: CONFIG.chainId === 10143 ? "Monad Testnet" : `Chain ${CONFIG.chainId}`,
+  name: isMonadTestnet ? "Monad Testnet" : `Chain ${CONFIG.chainId}`,
   nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
-  rpcUrls: { default: { http: [CONFIG.rpcUrl] } },
+  rpcUrls: { default: { http: ordered } },
+  // canonical Multicall3 on Monad testnet → many reads collapse into one eth_call
+  contracts: isMonadTestnet ? { multicall3: { address: "0xcA11bde05977b3631167028862bE2a173976CA11" } } : undefined,
 });
+
+const transport = fallback(
+  ordered.map((url) => http(url, { batch: NO_BATCH.some((d) => url.includes(d)) ? false : { wait: 16 }, retryCount: 1 })),
+  { retryCount: 1 }
+);
 
 export const publicClient = createPublicClient({
   chain,
-  transport: http(CONFIG.rpcUrl, { batch: { wait: 16 } }),
-  pollingInterval: 250,
+  transport,
+  pollingInterval: 300,
+  batch: { multicall: isMonadTestnet ? { wait: 16 } : false },
 });
 
 export const contract = { address: CONFIG.address, abi: blitzVoteAbi } as const;
@@ -41,8 +73,8 @@ export type Phase = 0 | 1 | 2;
 
 export const EMOJIS = ["👏", "🔥", "🚀", "💜"] as const;
 
-// Monad charges the gas LIMIT, not gas used — keep limits tight but safe.
-// Local measurements: vote ≈ 99k, react ≈ 30k. Estimates are padded 30%; these are ceilings/fallbacks.
+// Monad charges the gas LIMIT, not gas used — so every limit comes from an estimate (+30%), capped here.
+// On Monad (MIP-8 pricing) a vote is roughly 95–130k gas and a reaction roughly 40k.
 export const VOTE_GAS_CEIL = 250_000n;
 export const REACT_GAS_CEIL = 80_000n;
 
@@ -73,7 +105,21 @@ export async function readEventName(): Promise<string> {
   return publicClient.readContract({ ...contract, functionName: "eventName" });
 }
 
-// ------------------------------------------------------------------ burner
+// ------------------------------------------------------------------ fees
+
+let feeCache: { at: number; maxFeePerGas: bigint; maxPriorityFeePerGas: bigint } | null = null;
+const PRIORITY = 2_000_000_000n; // 2 gwei
+
+/** Base fee × 1.5 + tip. Kept low on purpose: the funding script budgets burners with the same formula. */
+export async function getFees() {
+  if (feeCache && Date.now() - feeCache.at < 30_000) return feeCache;
+  const block = await publicClient.getBlock({ blockTag: "latest" });
+  const base = block.baseFeePerGas ?? 100_000_000_000n;
+  feeCache = { at: Date.now(), maxFeePerGas: (base * 15n) / 10n + PRIORITY, maxPriorityFeePerGas: PRIORITY };
+  return feeCache;
+}
+
+// ---------------------------------------------------------------- burner
 
 const KEY_STORAGE = `blitzvote:${CONFIG.chainId}:${CONFIG.address.toLowerCase()}:pk`;
 
@@ -94,13 +140,99 @@ export function saveKey(pk: Hex) {
   }
 }
 
+let syncSupported: boolean | null = null; // null = not tried yet
+
+function isMethodMissing(e: unknown) {
+  const any = e as { code?: number; cause?: { code?: number }; message?: string };
+  const code = any?.code ?? any?.cause?.code;
+  return code === -32601 || /method not found|not supported|does not exist|unknown method/i.test(any?.message ?? "");
+}
+
+/**
+ * Burner wallet that signs locally and talks to the RPC as little as possible:
+ * nonce fetched once then tracked locally, fees cached, chain ID fixed — one request per transaction.
+ * Votes go through eth_sendRawTransactionSync (Monad returns the receipt in the same call).
+ */
 export function makeBurner(pk: Hex) {
-  const account = privateKeyToAccount(pk, { nonceManager });
-  const wallet = createWalletClient({ account, chain, transport: http(CONFIG.rpcUrl) });
-  return { account, wallet };
+  const account = privateKeyToAccount(pk);
+  let nonce: number | null = null;
+  let chainTail: Promise<unknown> = Promise.resolve();
+
+  async function nextNonce() {
+    if (nonce === null) nonce = await publicClient.getTransactionCount({ address: account.address, blockTag: "pending" });
+    return nonce++;
+  }
+
+  async function sign(data: Hex, gas: bigint) {
+    const fees = await getFees();
+    return account.signTransaction({
+      type: "eip1559",
+      chainId: CONFIG.chainId,
+      to: CONFIG.address,
+      data,
+      gas,
+      nonce: await nextNonce(),
+      maxFeePerGas: fees.maxFeePerGas,
+      maxPriorityFeePerGas: fees.maxPriorityFeePerGas,
+      value: 0n,
+    });
+  }
+
+  /** Serialised so nonces always leave in order, even when the user taps fast. */
+  function enqueue<T>(job: () => Promise<T>): Promise<T> {
+    const run = chainTail.then(job, job);
+    chainTail = run.catch(() => {});
+    return run;
+  }
+
+  function onSendError(e: unknown): never {
+    nonce = null; // whatever went wrong, re-read the pending nonce before the next tx so we never leave a gap
+    throw e;
+  }
+
+  /** Waits for inclusion; returns the receipt and how it was obtained. */
+  function sendAndConfirm(data: Hex, gas: bigint): Promise<{ receipt: TransactionReceipt; viaSync: boolean }> {
+    return enqueue(async () => {
+      const serializedTransaction = await sign(data, gas);
+      try {
+        if (syncSupported !== false) {
+          try {
+            const receipt = await publicClient.sendRawTransactionSync({ serializedTransaction, timeout: 10_000 });
+            syncSupported = true;
+            return { receipt, viaSync: true };
+          } catch (e) {
+            if (!isMethodMissing(e)) throw e;
+            syncSupported = false;
+          }
+        }
+        const hash = await publicClient.sendRawTransaction({ serializedTransaction });
+        const receipt = await publicClient.waitForTransactionReceipt({ hash, pollingInterval: 200 });
+        return { receipt, viaSync: false };
+      } catch (e) {
+        return onSendError(e);
+      }
+    });
+  }
+
+  /** Fire-and-forget: resolves once the RPC accepted the tx (no receipt polling). */
+  function sendOnly(data: Hex, gas: bigint): Promise<Hex> {
+    return enqueue(async () => {
+      try {
+        return await publicClient.sendRawTransaction({ serializedTransaction: await sign(data, gas) });
+      } catch (e) {
+        return onSendError(e);
+      }
+    });
+  }
+
+  return { account, sendAndConfirm, sendOnly };
 }
 
 export type Burner = ReturnType<typeof makeBurner>;
+
+export const encodeVote = (pid: number) => encodeFunctionData({ abi: blitzVoteAbi, functionName: "vote", args: [BigInt(pid)] });
+export const encodeReact = (pid: number, emoji: number) =>
+  encodeFunctionData({ abi: blitzVoteAbi, functionName: "react", args: [BigInt(pid), emoji] });
 
 export function explorerTx(hash: string) {
   return CONFIG.explorer ? `${CONFIG.explorer}/tx/${hash}` : "";
@@ -119,6 +251,7 @@ export function shortErr(e: unknown): string {
   if (name && map[name]) return map[name];
   const msg = any?.shortMessage || any?.message || String(e);
   for (const k of Object.keys(map)) if (msg.includes(k)) return map[k];
-  if (/insufficient funds/i.test(msg)) return "Kartın gas bakiyesi bitti — görevliye söyle.";
+  if (/insufficient funds|insufficient balance/i.test(msg)) return "Kartın gas bakiyesi bitti — görevliye söyle.";
+  if (/429|rate limit|too many/i.test(msg)) return "Ağ şu an yoğun, birkaç saniye sonra tekrar dene.";
   return msg.split("\n")[0].slice(0, 140);
 }

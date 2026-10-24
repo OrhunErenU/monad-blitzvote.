@@ -27,7 +27,11 @@ const accounts = process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [];
 const config: HardhatUserConfig = {
   solidity: {
     version: SOLC_VERSION,
-    settings: { optimizer: { enabled: true, runs: 500 }, evmVersion: "paris" },
+    settings: {
+      optimizer: { enabled: true, runs: 500 },
+      evmVersion: "paris",
+      metadata: { bytecodeHash: "ipfs" }, // Sourcify doğrulaması için gerekli
+    },
   },
   networks: {
     monadTestnet: {
@@ -35,6 +39,24 @@ const config: HardhatUserConfig = {
       chainId: Number(process.env.MONAD_CHAIN_ID || 10143),
       accounts,
     },
+  },
+  // docs.monad.xyz/guides/verify-smart-contract/hardhat — MonadVision (Sourcify) anahtarsız çalışır,
+  // Monadscan için ETHERSCAN_API_KEY gerekir.
+  sourcify: {
+    enabled: true,
+    apiUrl: "https://sourcify-api-monad.blockvision.org",
+    browserUrl: "https://testnet.monadvision.com",
+  },
+  etherscan: {
+    enabled: !!process.env.ETHERSCAN_API_KEY,
+    apiKey: { monadTestnet: process.env.ETHERSCAN_API_KEY || "" },
+    customChains: [
+      {
+        network: "monadTestnet",
+        chainId: 10143,
+        urls: { apiURL: "https://api.etherscan.io/v2/api?chainid=10143", browserURL: "https://testnet.monadscan.com" },
+      },
+    ],
   },
 };
 

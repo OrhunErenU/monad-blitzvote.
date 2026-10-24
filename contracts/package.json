@@ -13,7 +13,9 @@
     "open": "hardhat run scripts/phase.ts --network monadTestnet",
     "close": "hardhat run scripts/phase.ts --network monadTestnet",
     "status": "hardhat run scripts/status.ts --network monadTestnet",
-    "simulate": "hardhat run scripts/simulate.ts --network monadTestnet"
+    "simulate": "hardhat run scripts/simulate.ts --network monadTestnet",
+    "rehearse": "hardhat run scripts/rehearse.ts --network monadTestnet",
+    "verify": "hardhat run scripts/verify.ts --network monadTestnet"
   },
   "keywords": [],
   "author": "",

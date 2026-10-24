@@ -3,6 +3,8 @@ import { formatEther, type Hex } from "viem";
 import {
   contract,
   EMOJIS,
+  encodeReact,
+  encodeVote,
   explorerTx,
   makeBurner,
   PHASES,
@@ -12,6 +14,8 @@ import {
   VOTE_GAS_CEIL,
   type Burner,
 } from "./chain";
+
+const MAX_REACTS_PER_SEC = 2; // keeps a full room under public-RPC rate limits; extra taps still animate
 import { useSnapshot } from "./hooks";
 
 type Me = { isVoter: boolean; teamPlusOne: number; votePlusOne: number; balance: bigint };
@@ -25,13 +29,13 @@ function pad(est: bigint, ceil: bigint) {
 export default function Vote({ pk }: { pk: Hex }) {
   const burner: Burner = useMemo(() => makeBurner(pk), [pk]);
   const address = burner.account.address;
-  const { snap, error } = useSnapshot(3000);
+  const { snap, error } = useSnapshot(8000);
   const [me, setMe] = useState<Me | null>(null);
   const [armed, setArmed] = useState<number | null>(null);
   const [voting, setVoting] = useState<number | null>(null);
   const [toast, setToast] = useState<{ kind: "ok" | "err"; text: string; link?: string } | null>(null);
   const [sent, setSent] = useState(0);
-  const [confirmed, setConfirmed] = useState(0);
+  const recentSends = useRef<number[]>([]);
   const [bursts, setBursts] = useState<Burst[]>([]);
   const reactGas = useRef<bigint | null>(null);
   const burstId = useRef(0);
@@ -53,7 +57,7 @@ export default function Vote({ pk }: { pk: Hex }) {
 
   useEffect(() => {
     refreshMe();
-    const id = setInterval(refreshMe, 6000);
+    const id = setInterval(refreshMe, 30000);
     return () => clearInterval(id);
   }, [refreshMe]);
 
@@ -85,18 +89,17 @@ export default function Vote({ pk }: { pk: Hex }) {
         ...contract,
         functionName: "vote",
         args: [BigInt(pid)],
-        account: burner.account,
+        account: burner.account.address,
       });
       const gas = pad(est, VOTE_GAS_CEIL);
       const t0 = performance.now();
-      const hash = await burner.wallet.writeContract({ ...contract, functionName: "vote", args: [BigInt(pid)], gas });
-      const rcpt = await publicClient.waitForTransactionReceipt({ hash, pollingInterval: 150 });
+      const { receipt, viaSync } = await burner.sendAndConfirm(encodeVote(pid), gas);
       const secs = ((performance.now() - t0) / 1000).toFixed(2);
-      if (rcpt.status !== "success") throw new Error("İşlem geri döndü");
+      if (receipt.status !== "success") throw new Error("İşlem geri döndü");
       setToast({
         kind: "ok",
-        text: `Oyun zincirde ✓  ${secs} sn · blok #${rcpt.blockNumber}`,
-        link: explorerTx(hash),
+        text: `Oyun zincirde ✓  ${secs} sn · blok #${receipt.blockNumber}${viaSync ? " · tek istekte onay" : ""}`,
+        link: explorerTx(receipt.transactionHash),
       });
       await refreshMe();
     } catch (e) {
@@ -111,6 +114,10 @@ export default function Vote({ pk }: { pk: Hex }) {
     setBursts((b) => [...b.slice(-24), { id, emoji: EMOJIS[emoji], x: 10 + Math.random() * 80 }]);
     setTimeout(() => setBursts((b) => b.filter((x) => x.id !== id)), 1600);
     if (navigator.vibrate) navigator.vibrate(12);
+    const now = Date.now();
+    recentSends.current = recentSends.current.filter((t) => now - t < 1000);
+    if (recentSends.current.length >= MAX_REACTS_PER_SEC) return; // animate only
+    recentSends.current.push(now);
     setSent((n) => n + 1);
     try {
       if (reactGas.current === null) {
@@ -118,20 +125,11 @@ export default function Vote({ pk }: { pk: Hex }) {
           ...contract,
           functionName: "react",
           args: [BigInt(pid), emoji],
-          account: burner.account,
+          account: burner.account.address,
         });
         reactGas.current = pad(est, REACT_GAS_CEIL);
       }
-      const hash = await burner.wallet.writeContract({
-        ...contract,
-        functionName: "react",
-        args: [BigInt(pid), emoji],
-        gas: reactGas.current,
-      });
-      publicClient
-        .waitForTransactionReceipt({ hash, pollingInterval: 250 })
-        .then(() => setConfirmed((n) => n + 1))
-        .catch(() => {});
+      await burner.sendOnly(encodeReact(pid, emoji), reactGas.current);
     } catch (e) {
       setSent((n) => n - 1);
       setToast({ kind: "err", text: shortErr(e) });
@@ -215,9 +213,7 @@ export default function Vote({ pk }: { pk: Hex }) {
         <span className="mono">
           {address.slice(0, 6)}…{address.slice(-4)}
         </span>
-        <span>
-          {confirmed}/{sent} tepki onaylandı
-        </span>
+        <span>{sent} alkış zincire gönderildi</span>
         <span className="mono">{me ? Number(formatEther(me.balance)).toFixed(4) : "…"} MON</span>
       </footer>
 

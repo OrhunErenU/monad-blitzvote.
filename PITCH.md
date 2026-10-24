@@ -1,60 +1,68 @@
-# BlitzVote — Pitch (≈2,5 dk) + demo senaryosu
+# BlitzVote — 90 saniyelik demo
 
-## Sahneye çıkmadan önce
-- [ ] Projektörde `#/screen` tam ekran (F), sahnedeki proje olarak **BlitzVote** seçili (→)
-- [ ] Telefonunda kendi kartın açık (takım kartı: kendi projene oy düğmesi görünmemeli)
-- [ ] Laptopta terminal hazır: `REACTIONS=5 npm run simulate`
-- [ ] Salonda kartlar dağıtılmış (ideal: sabah girişte)
+Kural: 90 sn, canlı, slayt gerekmez. Puanlama: Execution %24 · On-chain/Monad fit %20 · Topluluk oyu %20 · Problem %16 · Özgünlük %12 · Sunum %8. "Honest pitch" bir eleme kapısı: sadece çalışanı iddia et.
+
+## Sahneye çıkmadan önce (hazırlık = sunumun yarısı)
+- [ ] Laptop projektörde: `URL/#/screen` tam ekran (F), sahnede **BlitzVote** seçili (→)
+- [ ] Telefonunda **seyirci** kartı açık, oy verilmemiş (oyu sahnede vereceksin)
+- [ ] İkinci telefon/sekmede **takım** kartın (kendi projende oy düğmesi yok)
+- [ ] Terminal hazır, komut yazılı, sadece Enter: `REACTIONS=5 npm run simulate`
+- [ ] `npm run rehearse` sonucundaki gerçek sayıları aşağıdaki [köşeli] yerlere yaz
 
 ---
 
-## Konuşma
+## Türkçe metin (~200 kelime ≈ 90 sn)
 
-**0:00 — Kanca (ekranı göster)**
-> "Arkamdaki sayıya bakın. Şu an [X] işlem gösteriyor. Bunları siz attınız. Bugün her demoda emojilere bastığınızda, her dokunuşunuz bir Monad işlemiydi."
+**[0–10 sn] Kanca: ekranı göster**
+> "Arkamdaki sayı, bu ekran açıldığından beri bu salondan Monad'a yazılan işlemleri gösteriyor. Demolar sırasında bastığınız her emoji bir Monad işlemiydi."
 
-**0:20 — Problem**
-> "Blitz'te kazananı salon seçiyor. Ama bu oylama genelde form, el kaldırma ya da Discord anketiyle yapılıyor. Bir kişi iki kez oy verebiliyor, takımlar kendine oy veriyor, sonucu da kimse doğrulayamıyor. Üstelik oylamayı bir **blokzincir** hackathonunda zincir dışında yapıyoruz."
+**[10–25 sn] Ne?**
+> "BlitzVote, demo gecesi için zincir üstü oylama. Girişte herkese bir QR kart veriliyor. Kart okutulunca gas'ı yüklü, kontrata kayıtlı bir cüzdan açılıyor: kurulum yok, imza penceresi yok. Kart başına tek oy var ve takımlar kendine oy veremiyor. Bu kurallar sunucuda değil, kontratta. Sayımı herkes zincirden okuyabiliyor."
 
-**0:40 — Çözüm**
-> "BlitzVote ile girişte herkese bir QR kart veriliyor. Kartı okuttuğunuzda telefonunuzda gas'ı yüklü, kontrata kayıtlı bir cüzdan açılıyor. Cüzdan kurmak yok, faucet yok, imza penceresi yok. Kart başına tek oy var ve takım kartları kendi projesine oy veremiyor. Bu kuralların hepsi kontratta, frontend'de değil."
+**[25–55 sn] Canlı demo**
+1. Telefonda **Oy ver → Onayla** → toast: *"Oyun zincirde ✓ [0.x] sn · tek istekte onay"*
+   > "Monad'ın `eth_sendRawTransactionSync` metodu sayesinde oy tek istekte blokta, receipt beklemiyoruz."
+2. Takım kartını göster:
+   > "Kendi projemde oy düğmesi yok. Zorlasam da kontrat reddediyor."
+3. Enter → simulate:
+   > "Şimdi bütün kartlar aynı anda oy ve alkış gönderiyor."
+   Ekranda çubuklar yükselir → *"tek blokta [N] işlem."*
 
-**1:00 — Canlı demo**
-1. Telefondan bir projeye **Oy ver → Onayla** → ekranda toast: *"Oyun zincirde ✓ 0.x sn · blok #…"*
-   > "Oyum yarım saniye içinde blokta."
-2. Kendi projende oy düğmesinin olmadığını göster.
-   > "Kendi takımıma oy veremiyorum. Bunu kontrat reddediyor."
-3. Laptopta `npm run simulate` çalıştır.
-   > "Şimdi salondaki bütün kartlar aynı anda oy ve alkış gönderiyor."
-   Ekranda blok çubukları ve **"blok başına rekor"** yükselir.
+**[55–80 sn] Neden Monad?**
+> "Monad işlemleri paralel yürütüyor ve sadece aynı state'e dokunanları yeniden çalıştırıyor. Salonun tamamı aynı projeye oy verdiğinde tek bir sayaca yazmasın diye sayaçları 16 parçaya böldük. Alkışlar storage'a hiç yazmıyor, sadece event yayıyor, yani hiç çakışmıyor. Monad gas'ı limit üzerinden aldığı için limitleri ölçüp sıkı tuttuk: bir kart, 1 oy ve 15 alkışla [X] MON."
 
-**1:40 — Neden Monad?**
-> "Burada üç şey yaptık:
-> **Bir:** Saniyenin altında blok süresi. Bu sayede 'oy verdim, gördüm' deneyimi anlık.
-> **İki:** Monad işlemleri paralel yürütüyor. Herkes aynı saniyede aynı projeye oy verdiğinde tek bir sayaca yazarsa işlemler çakışır. Biz sayaçları adrese göre 16 parçaya böldük. Alkışlar ise storage'a hiç yazmıyor, sadece event yayıyor.
-> **Üç:** Monad ücreti gas limitine göre alıyor. Biz de limitleri ölçüp sıkı tuttuk. Böylece 1 oy + 20 alkışlık bir kart birkaç kuruşa geliyor."
+**[80–90 sn] Dürüst kapanış**
+> "Bitmeyenler: oylar zincirde açık, gizli oy için sırada commit-reveal var. Kart da bir anahtar, o yüzden elden dağıtıyoruz. *[İstersen:]* TEDÜ Blockchain Topluluğu olarak bunu bir sonraki etkinliğimizde kullanacağız. Teşekkürler!"
 
-**2:10 — Sonraki adım**
-> "Bugüne kadar 50'den fazla Blitz yapıldı. BlitzVote, Monad ekibinin her Blitz'te kullanabileceği hazır bir araç. *[Organizatörler gölge oylamayı kabul ettiyse:] Bu akşamki resmi oylamayla paralel çalıştırdık, sonuçları yan yana koyabiliriz.* Sırada tek kullanımlık imzalı kodlar, gas sponsoru ve gizli oy için commit-reveal var."
+---
 
-**2:30 — Kapanış**
-> "Oylamayı zincire taşıdık, salonu da zincire taşıdık. Teşekkürler. Kartınızla bize de alkış atabilirsiniz 🙂"
+## English version (if judges prefer English)
+
+> "That number behind me is every transaction this room has sent to Monad since the screen opened. Every emoji you tapped during demos was a Monad transaction.
+>
+> BlitzVote is on-chain voting for demo night. Everyone gets a QR card. Scanning it opens a pre-funded, whitelisted burner wallet: no install, no pop-ups. One vote per card, and teams can't vote for themselves. Those rules live in the contract, and anyone can read the tally.
+>
+> *[vote on phone]* That vote landed in one request: Monad's `eth_sendRawTransactionSync` returns the receipt directly. *[team card]* My own project has no vote button, and the contract would reject it anyway. *[simulate]* Now every card votes and claps at once: [N] transactions in a single block.
+>
+> Why Monad: execution is optimistic and parallel, so we sharded the vote counters and made reactions storage-free, which means no conflicts. Gas is charged on the limit, so we measured and tightened it: a card with one vote and 15 claps costs [X] MON.
+>
+> What's not done: votes are public on-chain, so commit-reveal is next, and a card is a key, so we hand them out in person. Thanks!"
 
 ---
 
 ## Muhtemel sorular
 
+**"Bunun için zaten blitz.devnads.com var."**
+Evet, resmi oylama orada ve BlitzVote onun yerine geçmeyi iddia etmiyor. Bizim kattığımız üç şey var: kuralların kontratta olması ve sayımın zincirden doğrulanabilmesi, demo sırasında salonun canlı tepkisinin zincire yazılması ve bu sırada salonun kendisinin bir Monad yük testine dönüşmesi. Sonuçları bir etkinlik platformuna besleyebilir.
+
 **"QR'ı fotoğraflayan başkasının oyunu kullanamaz mı?"**
-Kullanabilir, çünkü kart = cüzdan. Bu yüzden kartları elden dağıtıyoruz. Bir sonraki sürümde tek kullanımlık, organizatör imzalı kodlar ve cihaza bağlı anahtar üretimi var.
+Kullanabilir, çünkü kart = anahtar. Bu yüzden elden dağıtıyoruz. Sırada tek kullanımlık imzalı kodlar ve gas sponsorluğu var.
 
-**"Oylar gizli mi?"**
-Ekranda kapanışa kadar gizli, zincirde değil. Bunu bilerek seçtik. Tek günlük bir demo için şeffaflık daha değerli. Gizlilik için commit-reveal yol haritasında.
-
-**"Neden her oy için ayrı tx, toplu gönderim yapsanız?"**
-Amaç "her insan kendi işlemini atıyor" deneyimi ve bunun Monad'da ucuz/hızlı olduğunu göstermek. Toplu gönderim, doğrulanabilirliği bir sunucuya devretmek demek.
-
-**"Shard'lama gerçekten fark yaratıyor mu?"**
-Aynı slot'a yazan işlemler paralel yürütmede çakışıyor. Shard'lama bu çakışmaları 16'ya bölüyor. Toplamı okumak 16 SLOAD'a mal oluyor ama bu bir view fonksiyonu, kimse gas ödemiyor. Kesin ölçüm için Monad'da yük testi yapmak bir sonraki adım. Bunu dürüstçe söyle, sayı uydurma.
+**"Shard'lama ölçülebilir fark yaratıyor mu?"**
+Monad'ın paralel yürütmesi aynı slot'a yazan işlemleri yeniden çalıştırıyor. Shard'lama bu ortak yazmaları 16'ya bölüyor. Bugün Monad'da kontrollü bir A/B ölçümü yapmadık; bunu dürüstçe söyle, sayı uydurma.
 
 **"Gas'ı kim ödüyor?"**
-Organizatör, kartları kaydederken tek bir işlemle tüm kartlara MON dağıtıyor (`registerVoters` payable). Kalan kuruşlar organizatöre geri dönüyor.
+Organizatör, `registerVoters` ile tek işlemde kartlara MON dağıtıyor; artan kuruşlar organizatöre geri dönüyor. Monad'ın 10 MON rezerv kuralına göre fonlama işlemleri aralıklı gönderiliyor.
+
+**"Neden toplu gönderim yapmıyorsunuz?"**
+Herkesin kendi işlemini kendi imzalaması doğrulanabilirliğin ta kendisi. Toplu gönderim, güveni bir sunucuya devretmek demek.

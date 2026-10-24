@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { ethers } from "hardhat";
-import { getContract, REACT_GAS_LIMIT, VOTE_GAS_LIMIT } from "./lib";
+import { getContract, getFees, REACT_GAS_LIMIT, VOTE_GAS_LIMIT } from "./lib";
 
 /**
  * Prova / sahne anı: out/ altındaki en son voters CSV'sindeki burner'larla aynı anda oy + tepki yağdırır.
@@ -27,6 +27,22 @@ async function main() {
   const wallets = rows.map(([, pk, team]) => ({ w: new ethers.Wallet(pk, ethers.provider), team: Number(team) }));
   console.log(`${wallets.length} cüzdan, proje sayısı ${n}, faz ${phase}`);
 
+  // Monad limit üzerinden ücret alır: limitleri gerçek tahminden (+30%) türet, fonlanan bütçeyi aşma
+  const fees = await getFees();
+  const pad = (g: bigint, cap: bigint) => ((g * 13n) / 10n > cap ? cap : (g * 13n) / 10n);
+  const reactGas = pad(await bv.connect(wallets[0].w).react.estimateGas(0, 0), REACT_GAS_LIMIT);
+  let voteGas = VOTE_GAS_LIMIT;
+  if (phase === 1) {
+    const fresh = [];
+    for (const x of wallets) if ((await bv.voteOf(x.w.address)) === 0n) { fresh.push(x); break; }
+    if (fresh[0]) {
+      const pid = fresh[0].team === 1 && n > 1 ? 1 : 0;
+      voteGas = pad(await bv.connect(fresh[0].w).vote.estimateGas(pid), VOTE_GAS_LIMIT);
+    }
+  }
+  console.log(`gas limitleri → oy ${voteGas}, tepki ${reactGas} · fiyat ${ethers.formatUnits(fees.maxFeePerGas, "gwei")} gwei`);
+  const txOpts = { maxFeePerGas: fees.maxFeePerGas, maxPriorityFeePerGas: fees.maxPriorityFeePerGas };
+
   const t0 = Date.now();
   const txs = await Promise.allSettled(
     wallets.map(async ({ w, team }) => {
@@ -36,10 +52,10 @@ async function main() {
       if (doVote && phase === 1 && (await bv.voteOf(w.address)) === 0n) {
         let pid = Math.floor(Math.random() * n);
         if (pid + 1 === team) pid = (pid + 1) % n;
-        if (n > 1 || pid + 1 !== team) sent.push(await c.vote(pid, { nonce: nonce++, gasLimit: VOTE_GAS_LIMIT }));
+        if (n > 1 || pid + 1 !== team) sent.push(await c.vote(pid, { ...txOpts, nonce: nonce++, gasLimit: voteGas }));
       }
       for (let r = 0; r < reactions; r++) {
-        sent.push(await c.react(Math.floor(Math.random() * n), Math.floor(Math.random() * 4), { nonce: nonce++, gasLimit: REACT_GAS_LIMIT }));
+        sent.push(await c.react(Math.floor(Math.random() * n), Math.floor(Math.random() * 4), { ...txOpts, nonce: nonce++, gasLimit: reactGas }));
       }
       return Promise.all(sent.map((t) => t.wait()));
     })

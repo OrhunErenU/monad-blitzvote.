@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import QRCode from "qrcode";
 import { ethers } from "hardhat";
-import { getContract, REACT_GAS_LIMIT, VOTE_GAS_LIMIT } from "./lib";
+import { EMPTYING_GAP_MS, getContract, getFees, REACT_GAS_LIMIT, RESERVE_MON, sleep, VOTE_GAS_LIMIT } from "./lib";
 
 /**
  * Burner cüzdan üretir, kontrata kaydeder, gas parası yükler ve yazdırılabilir QR kartları çıkarır.
@@ -11,7 +11,8 @@ import { getContract, REACT_GAS_LIMIT, VOTE_GAS_LIMIT } from "./lib";
  *   AUDIENCE=60          seyirci QR sayısı
  *   TEAM_QR=1            projects.json'daki "members" sayısı kadar takım QR'ı da üret (ilk çalıştırmada)
  *   APP_URL=https://...  QR'ların açacağı uygulama adresi (Vercel linkin)
- *   REACTIONS=20         kişi başı kaç tepki atabilecek kadar gas yüklensin
+ *   REACTIONS=15         kişi başı kaç tepki atabilecek kadar gas yüklensin
+ *   VOTE_GAS / REACT_GAS işlem başı beklenen gas (npm run rehearse ölçer)
  *   DRY_RUN=1            sadece maliyeti hesapla, hiçbir şey gönderme
  */
 
@@ -23,7 +24,7 @@ async function main() {
   const audience = Number(process.env.AUDIENCE ?? 60);
   const teamQr = process.env.TEAM_QR === "1";
   const appUrl = (process.env.APP_URL || "http://localhost:5173").replace(/\/$/, "");
-  const reactions = BigInt(process.env.REACTIONS ?? 20);
+  const reactions = BigInt(process.env.REACTIONS ?? 15);
   const dryRun = process.env.DRY_RUN === "1";
 
   const bv = await getContract();
@@ -47,20 +48,29 @@ async function main() {
   }
   if (burners.length === 0) throw new Error("Üretilecek QR yok (AUDIENCE=0 ve TEAM_QR kapalı).");
 
-  const fee = await ethers.provider.getFeeData();
-  const gasPrice = process.env.GAS_PRICE_GWEI
-    ? ethers.parseUnits(process.env.GAS_PRICE_GWEI, "gwei")
-    : (fee.maxFeePerGas ?? fee.gasPrice ?? ethers.parseUnits("100", "gwei"));
-  const perBurner = (gasPrice * (VOTE_GAS_LIMIT + reactions * REACT_GAS_LIMIT) * 12n) / 10n;
-  const total = perBurner * BigInt(burners.length);
+  // Kartlar, uygulamanın imzalarken kullandığı fiyatla (taban × 1.5 + 2 gwei) fonlanır.
+  const fees = await getFees();
+  const gasPrice = process.env.GAS_PRICE_GWEI ? ethers.parseUnits(process.env.GAS_PRICE_GWEI, "gwei") : fees.maxFeePerGas;
+  const perBurner = (gasPrice * (VOTE_GAS_LIMIT + reactions * REACT_GAS_LIMIT) * 11n) / 10n;
+  const funding = perBurner * BigInt(burners.length);
+  // registerVoters'ın kendi gas'ı: kart başı ~90k (2 SSTORE + yeni hesaba MON gönderme), 2× fiyatla tavan
+  const regGas = (fees.base * 2n + fees.maxPriorityFeePerGas) * 90_000n * BigInt(burners.length);
+  const total = funding + regGas;
   const balance = await ethers.provider.getBalance(organizer.address);
 
   console.log(`QR sayısı: ${burners.length}  (seyirci ${audience}, takım ${burners.length - audience})`);
-  console.log(`Gas fiyatı: ${ethers.formatUnits(gasPrice, "gwei")} gwei`);
-  console.log(`Kişi başı yükleme: ${ethers.formatEther(perBurner)} MON (1 oy + ${reactions} tepki)`);
-  console.log(`Toplam: ${ethers.formatEther(total)} MON   Bakiyen: ${ethers.formatEther(balance)} MON`);
+  console.log(`Taban ücret: ${ethers.formatUnits(fees.base, "gwei")} gwei · imza fiyatı: ${ethers.formatUnits(gasPrice, "gwei")} gwei`);
+  console.log(`Kişi başı yükleme: ${ethers.formatEther(perBurner)} MON (1 oy × ${VOTE_GAS_LIMIT} gas + ${reactions} tepki × ${REACT_GAS_LIMIT} gas)`);
+  console.log(`Kartlara giden: ${ethers.formatEther(funding)} MON + kayıt gas'ı ≤ ${ethers.formatEther(regGas)} MON`);
+  console.log(`Toplam ≤ ${ethers.formatEther(total)} MON   Bakiyen: ${ethers.formatEther(balance)} MON`);
+  if (balance - total < RESERVE_MON) {
+    console.log(
+      `Not: işlem sonrası bakiye 10 MON rezervin altına iniyor. Monad bunu yalnızca "emptying" işlemine izin verir\n` +
+        `      (son 3 blokta başka tx yoksa), bu yüzden her fonlama tx'inden önce ${EMPTYING_GAP_MS / 1000} sn bekliyoruz.`
+    );
+  }
   if (dryRun) return;
-  if (balance < total) throw new Error("Bakiye yetmiyor — REACTIONS'ı düşür ya da faucet'ten MON al.");
+  if (balance < total) throw new Error("Bakiye yetmiyor — REACTIONS/AUDIENCE'ı düşür ya da blitz.devnads.com / faucet'ten MON al.");
 
   // Önce dosyaları yaz: bir tx patlasa bile anahtarlar kaybolmasın.
   const outDir = path.join(__dirname, "..", "out");
@@ -74,6 +84,7 @@ async function main() {
   for (const [teamPlusOne, list] of groups) {
     for (let i = 0; i < list.length; i += BATCH) {
       const chunk = list.slice(i, i + BATCH);
+      await sleep(EMPTYING_GAP_MS); // reserve-balance "emptying" istisnası için: son 3 blokta tx olmasın
       const tx = await bv.registerVoters(
         chunk.map((b) => b.address),
         teamPlusOne,
