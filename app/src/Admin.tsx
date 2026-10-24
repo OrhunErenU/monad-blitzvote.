@@ -17,7 +17,7 @@ import {
   shortErr,
   type GameState,
 } from "./chain";
-import { pickWords } from "./words";
+import { pickWords, SOLO_POOL } from "./words";
 
 /**
  * Organizer panel: everything the event needs, from a phone browser.
@@ -32,9 +32,11 @@ const ZERO = "0x0000000000000000000000000000000000000000";
 const EMPTYING_GAP_MS = 2500;
 const BATCH = 40;
 // expected per-tx gas used to budget cards (the app itself always uses live estimates)
-const WORD_GAS = 65_000n;
+const WORD_GAS = 70_000n; // measured on Monad testnet: ~53k estimate × 1.3
 const NAME_GAS = 90_000n;
 const FINISH_GAS = 130_000n;
+// one solo run: startSolo + 14 words + a finishing word that may update the top 10
+const SOLO_RUN_GAS = 100_000n + 14n * WORD_GAS + 250_000n;
 
 const pad = (g: bigint) => (g * 13n) / 10n;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -142,7 +144,7 @@ export default function Admin() {
   const [eventName, setEventName] = useState("Monad Blitz Ankara");
   const deploy = () =>
     run("Deploy", async () => {
-      const data = encodeDeployData({ abi: blitzTypeAbi, bytecode: blitzTypeBytecode, args: [eventName.trim() || "BlitzType"] });
+      const data = encodeDeployData({ abi: blitzTypeAbi, bytecode: blitzTypeBytecode, args: [eventName.trim() || "BlitzType", SOLO_POOL] });
       const r = await send("Deploy", data, { to: null });
       if (!r.contractAddress) throw new Error("Kontrat adresi gelmedi");
       rememberContract(r.contractAddress);
@@ -155,9 +157,11 @@ export default function Admin() {
   const [players, setPlayers] = useState(40);
   const [rounds, setRounds] = useState(3);
   const [words, setWords] = useState(15);
+  const [soloRuns, setSoloRuns] = useState(3);
   const price = baseFee !== null ? (baseFee * 15n) / 10n + 2_000_000_000n : null;
   const perPlayer =
-    price !== null ? (price * (NAME_GAS + BigInt(rounds) * (BigInt(words - 1) * WORD_GAS + FINISH_GAS)) * 11n) / 10n : null;
+    price !== null ? (price * (NAME_GAS + BigInt(rounds) * (BigInt(words - 1) * WORD_GAS + FINISH_GAS) + BigInt(soloRuns) * SOLO_RUN_GAS) * 11n) / 10n
+      : null;
 
   const cards = () =>
     run("Kartlar", async () => {
@@ -391,7 +395,7 @@ img{width:100%;max-width:46mm;display:block;margin:2mm auto}.h{font-size:8.5pt;c
             <>
               <section className="adm">
                 <span className="kicker">Kartlar</span>
-                <div className="grid3">
+                <div className="grid3 g4">
                   <label>
                     Kişi
                     <input className="field sm" type="number" min={1} value={players} onChange={(e) => setPlayers(+e.target.value || 1)} />
@@ -403,6 +407,10 @@ img{width:100%;max-width:46mm;display:block;margin:2mm auto}.h{font-size:8.5pt;c
                   <label>
                     Kelime
                     <input className="field sm" type="number" min={2} max={32} value={words} onChange={(e) => setWords(+e.target.value || 2)} />
+                  </label>
+                  <label>
+                    Bireysel
+                    <input className="field sm" type="number" min={0} value={soloRuns} onChange={(e) => setSoloRuns(Math.max(0, +e.target.value || 0))} />
                   </label>
                 </div>
                 <p className="note">

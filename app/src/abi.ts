@@ -6,6 +6,11 @@ export const blitzTypeAbi = [
         "internalType": "string",
         "name": "_eventName",
         "type": "string"
+      },
+      {
+        "internalType": "string[]",
+        "name": "pool",
+        "type": "string[]"
       }
     ],
     "stateMutability": "nonpayable",
@@ -35,6 +40,11 @@ export const blitzTypeAbi = [
       }
     ],
     "name": "FundingFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NoSolo",
     "type": "error"
   },
   {
@@ -167,6 +177,81 @@ export const blitzTypeAbi = [
     "inputs": [
       {
         "indexed": true,
+        "internalType": "address",
+        "name": "player",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "run",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "blocksTaken",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "personalBest",
+        "type": "bool"
+      }
+    ],
+    "name": "SoloFinished",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "player",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "run",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "seed",
+        "type": "bytes32"
+      }
+    ],
+    "name": "SoloStarted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "player",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "wordIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "SoloTyped",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
         "internalType": "uint256",
         "name": "round",
         "type": "uint256"
@@ -203,6 +288,32 @@ export const blitzTypeAbi = [
   {
     "inputs": [],
     "name": "MAX_WORDS",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "SOLO_WORDS",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "TOP_N",
     "outputs": [
       {
         "internalType": "uint256",
@@ -405,6 +516,38 @@ export const blitzTypeAbi = [
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "i",
+        "type": "uint256"
+      }
+    ],
+    "name": "poolHash",
+    "outputs": [
+      {
+        "internalType": "bytes8",
+        "name": "",
+        "type": "bytes8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "poolSize",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "player",
         "type": "address"
@@ -442,6 +585,97 @@ export const blitzTypeAbi = [
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "player",
+        "type": "address"
+      }
+    ],
+    "name": "soloState",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "seed",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint64",
+        "name": "startBlock",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint32",
+        "name": "done",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "runs",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "best",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "blockNumber",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "soloTop",
+    "outputs": [
+      {
+        "internalType": "address[]",
+        "name": "players",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint32[]",
+        "name": "best",
+        "type": "uint32[]"
+      },
+      {
+        "internalType": "string[]",
+        "name": "names",
+        "type": "string[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "seed",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "i",
+        "type": "uint256"
+      }
+    ],
+    "name": "soloWordIndex",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "string[]",
         "name": "words",
         "type": "string[]"
@@ -458,6 +692,13 @@ export const blitzTypeAbi = [
       }
     ],
     "name": "startRound",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "startSolo",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -519,6 +760,19 @@ export const blitzTypeAbi = [
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "word",
+        "type": "string"
+      }
+    ],
+    "name": "typeSolo",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

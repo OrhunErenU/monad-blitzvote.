@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { zeroAddress, type Address } from "viem";
-import { CONFIG, contract, makeBlockClock, publicClient, readEventName, readState, readWords, type GameState } from "./chain";
+import {
+  CONFIG,
+  contract,
+  makeBlockClock,
+  publicClient,
+  readEventName,
+  readSoloTop,
+  readState,
+  readWords,
+  type GameState,
+  type SoloEntry,
+} from "./chain";
 
 type Player = { done: number; rank?: number; blocks?: number; last: bigint };
 type BlockBar = { n: bigint; count: number };
@@ -27,6 +38,16 @@ export default function Race() {
   const roundRef = useRef(0);
   const cursor = useRef<bigint | null>(null);
   const askedNames = useRef(new Set<string>());
+  const [soloTop, setSoloTop] = useState<SoloEntry[]>([]);
+  const [soloBump, setSoloBump] = useState(0);
+
+  // solo records: refresh slowly, and right after someone finishes a solo run
+  useEffect(() => {
+    const load = () => readSoloTop().then(setSoloTop).catch(() => {});
+    load();
+    const id = setInterval(load, 8000);
+    return () => clearInterval(id);
+  }, [soloBump]);
 
   useEffect(() => {
     readEventName().then(setEventName).catch(() => {});
@@ -92,6 +113,16 @@ export default function Race() {
               if (l.eventName === "Named") {
                 const args = l.args as { player: Address; name: string };
                 newNames[args.player.toLowerCase()] = args.name;
+                continue;
+              }
+              if (l.eventName === "SoloTyped") {
+                // solo words count towards the block strip and tx/s too: it's all on-chain typing
+                n++;
+                perBlock.set(l.blockNumber!, (perBlock.get(l.blockNumber!) ?? 0) + 1);
+                continue;
+              }
+              if (l.eventName === "SoloFinished") {
+                setSoloBump((b) => b + 1);
                 continue;
               }
               if (l.eventName !== "Typed" && l.eventName !== "Finished") continue;
@@ -189,6 +220,8 @@ export default function Race() {
   const podium = lanes.filter((l) => l.rank).slice(0, 3);
 
   const leaderDone = lanes[0]?.done ?? 0;
+  // between room rounds the projector shows the solo records
+  const showSolo = phase === "idle" || (phase === "over" && st !== null && now - st.endBlock > 150n);
   const statusLabel =
     phase === "idle" ? "Bekleniyor" : phase === "countdown" ? "Geri sayım" : phase === "live" ? "Canlı" : "Bitti";
 
@@ -215,6 +248,25 @@ export default function Race() {
         </main>
       ) : (
         <main className="sgrid">
+          {showSolo ? (
+            <section className="tower solo-board" aria-label="Bireysel rekorlar">
+              <div className="thead">
+                <span>Sıra</span>
+                <span>Bireysel test · 15 kelime</span>
+                <span>Süre</span>
+                <span style={{ textAlign: "right" }}>Blok</span>
+              </div>
+              {soloTop.map((t, i) => (
+                <div key={t.player} className={`trow${i === 0 ? " leader" : ""}`}>
+                  <span className="p">{i + 1}</span>
+                  <span className="n">{t.name}</span>
+                  <span className="t mono">≈{((t.best * ms) / 1000).toFixed(1)} sn</span>
+                  <span className="g">{t.best} blok</span>
+                </div>
+              ))}
+              {soloTop.length === 0 && <div className="tempty">Bireysel rekor yok · telefondan “Bireysel test”</div>}
+            </section>
+          ) : (
           <section className="tower" aria-label="Sıralama">
             {phase === "over" && podium.length > 0 && (
               <div className="podium">
@@ -250,12 +302,13 @@ export default function Race() {
                 </span>
               </div>
             ))}
-            {lanes.length === 0 && <div className="tempty">{phase === "idle" ? "Tur bekleniyor…" : "İlk kelime bekleniyor…"}</div>}
+            {lanes.length === 0 && <div className="tempty">İlk kelime bekleniyor…</div>}
           </section>
+          )}
 
           <section className="telemetry">
             <div className="tele-top">
-              <span className="kicker">Bu turda zincire yazılan kelime</span>
+              <span className="kicker">{showSolo ? "Zincire yazılan kelime · bu ekran açıkken" : "Bu turda zincire yazılan kelime"}</span>
               <div className="bignum">{txCount.toLocaleString("tr-TR")}</div>
             </div>
             <div className="metrics">

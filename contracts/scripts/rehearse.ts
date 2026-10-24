@@ -1,5 +1,6 @@
 import { ethers, network } from "hardhat";
 import { EMPTYING_GAP_MS, getFees, sleep } from "./lib";
+import { SOLO_POOL } from "./words";
 
 /**
  * Gerçek ağda ~1 dakikalık prova — asıl kontrata ve deployment dosyalarına dokunmaz.
@@ -23,7 +24,7 @@ async function main() {
   console.log(`Ağ: ${network.name} (chain ${chainId})  Organizatör: ${org.address}`);
   console.log(`Bakiye: ${ethers.formatEther(await ethers.provider.getBalance(org.address))} MON\n`);
 
-  const bt = await ethers.deployContract("BlitzType", ["BlitzType rehearsal"]);
+  const bt = await ethers.deployContract("BlitzType", ["BlitzType rehearsal", SOLO_POOL]);
   await bt.waitForDeployment();
   const addr = await bt.getAddress();
   console.log(`1/5 prova kontratı: ${addr}`);

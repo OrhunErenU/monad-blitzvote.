@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Hex } from "viem";
+import { generatePrivateKey } from "viem/accounts";
 import { CONFIG, loadKey, saveKey } from "./chain";
 import { useHashRoute } from "./hooks";
 import Play, { Landing } from "./Play";
@@ -21,6 +22,15 @@ export default function App() {
     }
   }, [route]);
 
+  // no card: #/solo makes a wallet in this browser; the player funds it themselves
+  useEffect(() => {
+    if (route.startsWith("/solo") && !pk) {
+      const key = generatePrivateKey();
+      saveKey(key);
+      setPk(key);
+    }
+  }, [route, pk]);
+
   if (route.startsWith("/admin")) return <Admin />;
   if (/^0x0{40}$/i.test(CONFIG.address)) {
     return (
@@ -36,6 +46,7 @@ export default function App() {
     );
   }
   if (route.startsWith("/screen")) return <Race />;
+  if (route.startsWith("/solo")) return pk ? <Play pk={pk} initialMode="solo" /> : null;
   if (pk) return <Play pk={pk} />;
   if (route.startsWith("/p/")) return null;
   return <Landing />;

@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { ethers, network } from "hardhat";
 import { APP_DEPLOYMENT, DEPLOY_DIR, deploymentFile } from "./lib";
+import { SOLO_POOL } from "./words";
 
 async function main() {
   const eventName = process.env.EVENT_NAME || "Monad Blitz Ankara";
@@ -9,7 +10,7 @@ async function main() {
   console.log(`Ağ: ${network.name}  Deployer: ${deployer.address}`);
   console.log(`Bakiye: ${ethers.formatEther(await ethers.provider.getBalance(deployer.address))} MON`);
 
-  const bv = await ethers.deployContract("BlitzType", [eventName]);
+  const bv = await ethers.deployContract("BlitzType", [eventName, SOLO_POOL]);
   await bv.waitForDeployment();
   const address = await bv.getAddress();
   const receipt = await bv.deploymentTransaction()!.wait();

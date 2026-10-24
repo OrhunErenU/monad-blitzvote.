@@ -1,8 +1,10 @@
 import {
   createPublicClient,
   defineChain,
+  encodeAbiParameters,
   encodeFunctionData,
   fallback,
+  keccak256,
   http,
   type Address,
   type Hex,
@@ -273,6 +275,36 @@ export function makeBurner(pk: Hex) {
 export type Burner = ReturnType<typeof makeBurner>;
 
 export const encodeWord = (word: string) => encodeFunctionData({ abi: blitzTypeAbi, functionName: "typeWord", args: [word] });
+export const encodeStartSolo = () => encodeFunctionData({ abi: blitzTypeAbi, functionName: "startSolo" });
+export const encodeSoloWord = (word: string) => encodeFunctionData({ abi: blitzTypeAbi, functionName: "typeSolo", args: [word] });
+
+export type SoloState = { seed: Hex; startBlock: bigint; done: number; runs: number; best: number; blockNumber: bigint };
+
+export async function readSolo(player: Address): Promise<SoloState> {
+  const [seed, startBlock, done, runs, best, blockNumber] = await publicClient.readContract({
+    ...contract,
+    functionName: "soloState",
+    args: [player],
+  });
+  return { seed, startBlock, done: Number(done), runs: Number(runs), best: Number(best), blockNumber };
+}
+
+export type SoloEntry = { player: Address; best: number; name: string };
+
+export async function readSoloTop(): Promise<SoloEntry[]> {
+  const [players, best, names] = await publicClient.readContract({ ...contract, functionName: "soloTop" });
+  return players.map((p, i) => ({ player: p, best: Number(best[i]), name: names[i] || `${p.slice(0, 6)}…` }));
+}
+
+/** Same derivation as BlitzType.soloWordIndex: keccak256(abi.encode(seed, i)) % pool.length. */
+export function soloWords(seed: Hex, pool: readonly string[], count: number): string[] {
+  const n = BigInt(pool.length);
+  return Array.from({ length: count }, (_, i) => {
+    const h = keccak256(encodeAbiParameters([{ type: "bytes32" }, { type: "uint256" }], [seed, BigInt(i)]));
+    return pool[Number(BigInt(h) % n)];
+  });
+}
+
 export const encodeName = (name: string) => encodeFunctionData({ abi: blitzTypeAbi, functionName: "setName", args: [name] });
 
 /** Last ~10 s of observed block heads → ms per block (Monad ≈ 300–400 ms). */
@@ -313,6 +345,7 @@ export function shortErr(e: unknown): string {
     RoundOver: "Süre doldu.",
     AlreadyFinished: "Bu turu zaten bitirdin.",
     BadName: "İsim 1–16 karakter olmalı.",
+    NoSolo: "Önce bireysel testi başlat.",
   };
   if (name && map[name]) return map[name];
   const msg = any?.shortMessage || any?.message || String(e);

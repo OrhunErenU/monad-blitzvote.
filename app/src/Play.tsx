@@ -16,6 +16,8 @@ import {
   WORD_GAS_CEIL,
   type GameState,
 } from "./chain";
+import Solo from "./Solo";
+import { Segments, Shell } from "./ui";
 
 type Result = { rank: number; blocks: number };
 
@@ -24,7 +26,10 @@ const pad = (est: bigint, ceil: bigint) => {
   return g > ceil ? ceil : g;
 };
 
-export default function Play({ pk }: { pk: Hex }) {
+type Mode = "race" | "solo";
+
+export default function Play({ pk, initialMode = "race" }: { pk: Hex; initialMode?: Mode }) {
+  const [mode, setMode] = useState<Mode>(initialMode);
   const burner = useMemo(() => makeBurner(pk), [pk]);
   const address = burner.account.address;
   const clock = useRef(makeBlockClock());
@@ -84,10 +89,10 @@ export default function Play({ pk }: { pk: Hex }) {
   useEffect(() => {
     refresh();
     // fast polling only around the countdown; during the race the chain answers our own txs
-    const ms = phase === "countdown" ? 1000 : phase === "live" ? 5000 : 2500;
+    const ms = mode === "solo" ? 8000 : phase === "countdown" ? 1000 : phase === "live" ? 5000 : 2500;
     const id = setInterval(refresh, ms);
     return () => clearInterval(id);
-  }, [refresh, phase]);
+  }, [refresh, phase, mode]);
 
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 200);
@@ -99,8 +104,8 @@ export default function Play({ pk }: { pk: Hex }) {
   }, [address, confirmed]);
 
   useEffect(() => {
-    if (phase === "live") inputRef.current?.focus();
-  }, [phase]);
+    if (phase === "live" && mode === "race") inputRef.current?.focus();
+  }, [phase, mode]);
 
   // ------------------------------------------------------------------ name
   async function saveName(e: React.FormEvent) {
@@ -191,6 +196,38 @@ export default function Play({ pk }: { pk: Hex }) {
     </footer>
   );
 
+  if (balance === 0n) {
+    return (
+      <Shell status={<span className="status">Gas yok</span>}>
+        <div className="pbody">
+          <span className="kicker">Cüzdanın hazır, bakiyesi boş</span>
+          <h1 className="headline">Bu adrese biraz testnet MON gönder</h1>
+          <p className="lede">Her kelime ~0,01 MON gas yakar; 0,5 MON onlarca test için yeter. MON: faucet.monad.xyz ya da blitz.devnads.com.</p>
+          <button className="btn" onClick={() => navigator.clipboard?.writeText(address)}>
+            Adresi kopyala
+          </button>
+          <code className="addrbox">{address}</code>
+          <button className="btn ghost" onClick={() => publicClient.getBalance({ address }).then(setBalance)}>
+            Bakiyeyi yenile
+          </button>
+        </div>
+        {footer}
+      </Shell>
+    );
+  }
+
+  const roundOn = phase === "countdown" || phase === "live";
+  const tabs = (
+    <nav className="tabs" aria-label="Mod">
+      <button className={mode === "race" ? "on" : ""} onClick={() => setMode("race")}>
+        Salon yarışı{roundOn && mode !== "race" ? <i className="dot" aria-label="canlı" /> : null}
+      </button>
+      <button className={mode === "solo" ? "on" : ""} onClick={() => setMode("solo")}>
+        Bireysel test
+      </button>
+    </nav>
+  );
+
   if (st && !st.myName) {
     return (
       <Shell status={<span className="status">Kayıt</span>}>
@@ -220,6 +257,21 @@ export default function Play({ pk }: { pk: Hex }) {
     );
   }
 
+  if (st && mode === "solo") {
+    return (
+      <Shell status={<span className="status">Bireysel</span>}>
+        {tabs}
+        <Solo burner={burner} name={st.myName} msPerBlock={() => clock.current.msPerBlock()} onErr={setErr} />
+        {err && (
+          <div className="toast" role="alert" onClick={() => setErr(null)}>
+            {err}
+          </div>
+        )}
+        {footer}
+      </Shell>
+    );
+  }
+
   if (phase === "countdown") {
     return (
       <Shell status={<span className="status countdown">Tur {st?.round} · Hazır</span>}>
@@ -240,6 +292,7 @@ export default function Play({ pk }: { pk: Hex }) {
         </span>
       }
     >
+      {phase !== "live" && tabs}
       <div className="pmeta">
         <span>{st?.myName ?? "…"}</span>
         {phase === "live" && (
@@ -253,8 +306,11 @@ export default function Play({ pk }: { pk: Hex }) {
         {phase === "idle" && (
           <>
             <span className="kicker">Hazırsın, {st?.myName}</span>
-            <h1 className="headline">Yarış başlayınca kelimeler burada belirecek</h1>
-            <p className="lede">Ekranı açık tut. Geri sayım hem burada hem projektörde görünür.</p>
+            <h1 className="headline">Salon turu başlayınca kelimeler burada belirecek</h1>
+            <p className="lede">Ekranı açık tut. Beklerken bireysel testte rekorunu zorla; tur başlayınca sekmede işaret çıkar.</p>
+            <button className="btn ghost" onClick={() => setMode("solo")}>
+              Bireysel teste geç
+            </button>
           </>
         )}
 
@@ -343,44 +399,17 @@ export default function Play({ pk }: { pk: Hex }) {
   );
 }
 
-function Segments({ total, typed, confirmed }: { total: number; typed: number; confirmed: number }) {
-  return (
-    <div className="segs">
-      <div className="cells">
-        {Array.from({ length: total }, (_, i) => (
-          <span key={i} className={`cell${i < confirmed ? " conf" : i < typed ? " typed" : ""}`} />
-        ))}
-      </div>
-      <div className="legend">
-        <span>yazdın {typed}</span>
-        <span className="c">zincirde {confirmed}</span>
-      </div>
-    </div>
-  );
-}
-
-function Shell({ status, children }: { status: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="phone">
-      <header className="ptop">
-        <span className="wordmark" lang="en">
-          BlitzType<span className="cur" />
-        </span>
-        {status}
-      </header>
-      {children}
-    </div>
-  );
-}
-
 export function Landing() {
   return (
     <Shell status={<span className="onmonad" lang="en">on Monad</span>}>
       <div className="pbody">
-        <span className="kicker">Oda boyu yazma yarışı</span>
+        <span className="kicker">Zincir üstünde yazma hızı</span>
         <h1 className="headline">Kartındaki QR'ı okut</h1>
-        <p className="lede">Cüzdan ve gas hazır gelir. Tur başlayınca kelimeleri yaz; her doğru kelime bir Monad işlemi, sırayı zincir belirler.</p>
-        <a className="btn" href="#/screen" style={{ display: "grid", placeItems: "center", textDecoration: "none" }}>
+        <p className="lede">Cüzdan ve gas hazır gelir. İki mod var: salonla aynı anda yarış ya da tek başına {15} kelimelik hız testi. Her doğru kelime bir Monad işlemi; sırayı ve süreyi zincir belirler.</p>
+        <a className="btn" href="#/solo" style={{ display: "grid", placeItems: "center", textDecoration: "none" }}>
+          Kartın yok mu? Bireysel test
+        </a>
+        <a className="btn ghost" href="#/screen" style={{ display: "grid", placeItems: "center", textDecoration: "none" }}>
           Projektör ekranı
         </a>
       </div>

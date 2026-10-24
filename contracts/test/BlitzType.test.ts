@@ -1,5 +1,6 @@
 import { expect } from "chai";
 import { ethers, network } from "hardhat";
+import { SOLO_POOL } from "../scripts/words";
 
 const WORDS = ["monad", "blok", "hizli", "zincir"];
 
@@ -10,21 +11,21 @@ async function mine(n: number) {
 describe("BlitzType", () => {
   async function setup(delay = 0, duration = 100) {
     const [org, alice, bob, carol] = await ethers.getSigners();
-    const bt = await ethers.deployContract("BlitzType", ["Monad Blitz Ankara"]);
+    const bt = await ethers.deployContract("BlitzType", ["Monad Blitz Ankara", SOLO_POOL]);
     await bt.startRound(WORDS, delay, duration);
     return { bt, org, alice, bob, carol };
   }
 
   it("only organizer starts rounds and funds", async () => {
     const [, alice] = await ethers.getSigners();
-    const bt = await ethers.deployContract("BlitzType", ["x"]);
+    const bt = await ethers.deployContract("BlitzType", ["x", SOLO_POOL]);
     await expect(bt.connect(alice).startRound(WORDS, 0, 10)).to.be.revertedWithCustomError(bt, "NotOrganizer");
     await expect(bt.connect(alice).fund([alice.address])).to.be.revertedWithCustomError(bt, "NotOrganizer");
   });
 
   it("rejects typing before any round", async () => {
     const [, alice] = await ethers.getSigners();
-    const bt = await ethers.deployContract("BlitzType", ["x"]);
+    const bt = await ethers.deployContract("BlitzType", ["x", SOLO_POOL]);
     await expect(bt.connect(alice).typeWord("monad")).to.be.revertedWithCustomError(bt, "NotStarted");
   });
 
@@ -88,7 +89,7 @@ describe("BlitzType", () => {
   });
 
   it("validates round input", async () => {
-    const bt = await ethers.deployContract("BlitzType", ["x"]);
+    const bt = await ethers.deployContract("BlitzType", ["x", SOLO_POOL]);
     await expect(bt.startRound([], 0, 10)).to.be.revertedWithCustomError(bt, "BadWords");
     await expect(bt.startRound(Array(33).fill("a"), 0, 10)).to.be.revertedWithCustomError(bt, "BadWords");
     await expect(bt.startRound(["a", ""], 0, 10)).to.be.revertedWithCustomError(bt, "BadWords");
@@ -96,7 +97,7 @@ describe("BlitzType", () => {
   });
 
   it("funds players and refunds dust", async () => {
-    const bt = await ethers.deployContract("BlitzType", ["x"]);
+    const bt = await ethers.deployContract("BlitzType", ["x", SOLO_POOL]);
     const ws = [1, 2, 3].map(() => ethers.Wallet.createRandom().address);
     await bt.fund(ws, { value: 10n });
     for (const w of ws) expect(await ethers.provider.getBalance(w)).to.equal(3n);
@@ -116,12 +117,110 @@ describe("BlitzType", () => {
 
   it("50 players race concurrently", async () => {
     const [org] = await ethers.getSigners();
-    const bt = await ethers.deployContract("BlitzType", ["burst"]);
+    const bt = await ethers.deployContract("BlitzType", ["burst", SOLO_POOL]);
     const players = Array.from({ length: 50 }, () => ethers.Wallet.createRandom().connect(ethers.provider));
     await bt.fund(players.map((p) => p.address), { value: ethers.parseEther("1") });
     await bt.startRound(WORDS, 0, 1000);
     for (const w of WORDS) await Promise.all(players.map((p) => bt.connect(p).typeWord(w)));
     expect(await bt.finisherCount(1)).to.equal(50n);
     void org;
+  });
+
+  // ---------------------------------------------------------------- solo mode
+  async function soloWords(bt: any, player: string) {
+    const [seed] = await bt.soloState(player);
+    const n = BigInt(SOLO_POOL.length);
+    const out: string[] = [];
+    for (let i = 0; i < 15; i++) {
+      const h = BigInt(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(["bytes32", "uint256"], [seed, i])));
+      const idx = Number(h % n);
+      expect(await bt.soloWordIndex(seed, i)).to.equal(BigInt(idx)); // client derivation == contract
+      out.push(SOLO_POOL[idx]);
+    }
+    return out;
+  }
+
+  it("solo: stores the pool and rejects typing without a run", async () => {
+    const [, alice] = await ethers.getSigners();
+    const bt = await ethers.deployContract("BlitzType", ["x", SOLO_POOL]);
+    expect(await bt.poolSize()).to.equal(BigInt(SOLO_POOL.length));
+    expect(await bt.poolHash(0)).to.equal(ethers.keccak256(ethers.toUtf8Bytes(SOLO_POOL[0])).slice(0, 18));
+    await expect(bt.connect(alice).typeSolo("monad")).to.be.revertedWithCustomError(bt, "NoSolo");
+    await expect(ethers.deployContract("BlitzType", ["x", ["a"]])).to.be.reverted;
+  });
+
+  it("solo: verifies words in order, not in the start block, records best and leaderboard", async () => {
+    const [, alice, bob] = await ethers.getSigners();
+    const bt = await ethers.deployContract("BlitzType", ["x", SOLO_POOL]);
+    await bt.connect(alice).setName("alice");
+
+    await network.provider.send("evm_setAutomine", [false]);
+    await bt.connect(alice).startSolo();
+    const early = await bt.connect(alice).typeSolo("monad", { gasLimit: 200000 });
+    await mine(1);
+    await network.provider.send("evm_setAutomine", [true]);
+    const r = await ethers.provider.getTransactionReceipt(early.hash);
+    expect(r!.status).to.equal(0); // same block as startSolo → NotStarted
+
+    const words = await soloWords(bt, alice.address);
+    const wrong = SOLO_POOL.find((w) => w !== words[0])!;
+    await expect(bt.connect(alice).typeSolo(wrong)).to.be.revertedWithCustomError(bt, "WrongWord");
+    for (let i = 0; i < 14; i++) await bt.connect(alice).typeSolo(words[i]);
+    await expect(bt.connect(alice).typeSolo(words[14])).to.emit(bt, "SoloFinished");
+    await expect(bt.connect(alice).typeSolo(words[0])).to.be.revertedWithCustomError(bt, "AlreadyFinished");
+    const [, start, done, runs, best] = await bt.soloState(alice.address);
+    expect(done).to.equal(15n);
+    expect(runs).to.equal(1n);
+    expect(best).to.be.greaterThan(0n);
+    void start;
+
+    // bob is faster (mines nothing between words → fewer blocks? use automine off to batch)
+    await bt.connect(bob).startSolo();
+    const bw = await soloWords(bt, bob.address);
+    await network.provider.send("evm_setAutomine", [false]);
+    for (let i = 0; i < 15; i++) await bt.connect(bob).typeSolo(bw[i], { gasLimit: 300000 });
+    await mine(1);
+    await network.provider.send("evm_setAutomine", [true]);
+    const [players, bests, names] = await bt.soloTop();
+    expect(players).to.deep.equal([bob.address, alice.address]);
+    expect(bests[0]).to.equal(1n);
+    expect(names[1]).to.equal("alice");
+
+    // a slower second run is not a personal best and doesn't move the board
+    await bt.connect(bob).startSolo();
+    const bw2 = await soloWords(bt, bob.address);
+    for (const w of bw2) await bt.connect(bob).typeSolo(w);
+    const [, , , runs2, best2] = await bt.soloState(bob.address);
+    expect(runs2).to.equal(2n);
+    expect(best2).to.equal(1n);
+    expect((await bt.soloTop())[0]).to.deep.equal([bob.address, alice.address]);
+  });
+
+  it("solo: leaderboard keeps top 10 sorted with one entry per player", async () => {
+    const signers = (await ethers.getSigners()).slice(1, 14);
+    const bt = await ethers.deployContract("BlitzType", ["x", SOLO_POOL]);
+    // player k takes roughly k extra blocks
+    for (let k = 0; k < signers.length; k++) {
+      const p = signers[signers.length - 1 - k]; // slower players first, so inserts land everywhere
+      await bt.connect(p).startSolo();
+      const w = await soloWords(bt, p.address);
+      await mine(signers.length - k);
+      for (const x of w) await bt.connect(p).typeSolo(x);
+    }
+    const [players, bests] = await bt.soloTop();
+    expect(players.length).to.equal(10);
+    for (let i = 1; i < bests.length; i++) expect(bests[i]).to.be.greaterThanOrEqual(bests[i - 1]);
+    expect(new Set(players).size).to.equal(10);
+  });
+
+  it("solo: gas per word", async () => {
+    const [, alice] = await ethers.getSigners();
+    const bt = await ethers.deployContract("BlitzType", ["x", SOLO_POOL]);
+    const start = await (await bt.connect(alice).startSolo()).wait();
+    const w = await soloWords(bt, alice.address);
+    const g: bigint[] = [];
+    for (const x of w) g.push((await (await bt.connect(alice).typeSolo(x)).wait())!.gasUsed);
+    console.log(`      startSolo ${start!.gasUsed}, first word ${g[0]}, next ${g[1]}, last ${g[14]}`);
+    expect(g[1]).to.be.lessThan(60000n);
   });
 });

@@ -30,3 +30,6 @@ export function pickWords(n: number, seed = Date.now()): string[] {
   }
   return pool.slice(0, n);
 }
+
+/// Solo-mode pool: passed to the BlitzType constructor in this exact order. Changing it needs a redeploy.
+export const SOLO_POOL: string[] = [...new Set(WORDS)];

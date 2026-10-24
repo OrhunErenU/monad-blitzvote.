@@ -36,11 +36,33 @@ contract BlitzType {
     mapping(address => uint256) private _progress;
     mapping(address => string) public nameOf;
 
+    // ------------------------------------------------------------ solo mode
+    /// Words per solo run (Monkeytype-style "words" test, same for everyone so scores compare).
+    uint256 public constant SOLO_WORDS = 15;
+    uint256 public constant TOP_N = 10;
+
+    struct Solo {
+        bytes32 seed; // picks this run's words from the pool
+        uint64 startBlock; // block of the startSolo tx; words are accepted from the next block
+        uint32 done;
+        uint32 runs;
+        uint32 best; // fewest blocks for SOLO_WORDS words, 0 = never finished
+    }
+
+    /// keccak256(word) truncated to 8 bytes; Solidity packs 4 per storage slot
+    bytes8[] private _pool;
+    mapping(address => Solo) private _solo;
+    /// best solo players, sorted by `best` ascending (ties: earlier record first)
+    address[] private _top;
+
     event RoundStarted(uint256 indexed round, uint64 startBlock, uint64 endBlock, string[] words);
     event Typed(uint256 indexed round, address indexed player, uint256 wordIndex);
     event Finished(uint256 indexed round, address indexed player, uint256 rank, uint256 blocksTaken);
     event Named(address indexed player, string name);
     event Funded(uint256 players, uint256 each);
+    event SoloStarted(address indexed player, uint256 run, bytes32 seed);
+    event SoloTyped(address indexed player, uint256 wordIndex);
+    event SoloFinished(address indexed player, uint256 run, uint256 blocksTaken, bool personalBest);
 
     error NotOrganizer();
     error RoundLive();
@@ -51,15 +73,22 @@ contract BlitzType {
     error AlreadyFinished();
     error BadName();
     error FundingFailed(address player);
+    error NoSolo();
 
     modifier onlyOrganizer() {
         if (msg.sender != organizer) revert NotOrganizer();
         _;
     }
 
-    constructor(string memory _eventName) {
+    /// @param pool word pool for solo runs (the app bundles the same list, in the same order)
+    constructor(string memory _eventName, string[] memory pool) {
         organizer = msg.sender;
         eventName = _eventName;
+        if (pool.length < 2) revert BadWords();
+        for (uint256 i; i < pool.length; ++i) {
+            if (bytes(pool[i]).length == 0) revert BadWords();
+            _pool.push(bytes8(keccak256(bytes(pool[i]))));
+        }
     }
 
     // ------------------------------------------------------------- organizer
@@ -139,6 +168,111 @@ contract BlitzType {
             uint256 rank = ++finisherCount[id];
             finisherAt[id][rank] = msg.sender;
             emit Finished(id, msg.sender, rank, block.number - r.startBlock + 1);
+        }
+    }
+
+    // ------------------------------------------------------------- solo mode
+
+    /// @notice Start (or restart) a personal speed test of SOLO_WORDS words drawn from the pool.
+    function startSolo() external {
+        Solo storage s = _solo[msg.sender];
+        uint256 run;
+        unchecked {
+            run = ++s.runs;
+        }
+        bytes32 seed = keccak256(abi.encode(msg.sender, run, blockhash(block.number - 1), block.prevrandao));
+        s.seed = seed;
+        s.startBlock = uint64(block.number);
+        s.done = 0;
+        emit SoloStarted(msg.sender, run, seed);
+    }
+
+    /// @notice Submit the next word of your solo run.
+    function typeSolo(string calldata word) external {
+        Solo storage s = _solo[msg.sender];
+        uint256 start = s.startBlock;
+        if (start == 0) revert NoSolo();
+        if (block.number <= start) revert NotStarted();
+        uint256 done = s.done;
+        if (done >= SOLO_WORDS) revert AlreadyFinished();
+        if (bytes8(keccak256(bytes(word))) != _pool[soloWordIndex(s.seed, done)]) revert WrongWord();
+
+        unchecked {
+            ++done;
+        }
+        s.done = uint32(done);
+        emit SoloTyped(msg.sender, done - 1);
+
+        if (done == SOLO_WORDS) {
+            uint32 blocks = uint32(block.number - start);
+            bool pb = s.best == 0 || blocks < s.best;
+            if (pb) {
+                s.best = blocks;
+                _updateTop(msg.sender, blocks);
+            }
+            emit SoloFinished(msg.sender, s.runs, blocks, pb);
+        }
+    }
+
+    /// @dev Only runs on a personal best, so the shared leaderboard is rarely written.
+    function _updateTop(address player, uint32 blocks) private {
+        uint256 n = _top.length;
+        for (uint256 i; i < n; ++i) {
+            if (_top[i] == player) {
+                for (uint256 j = i; j + 1 < n; ++j) _top[j] = _top[j + 1];
+                _top.pop();
+                --n;
+                break;
+            }
+        }
+        uint256 pos = n;
+        for (uint256 i; i < n; ++i) {
+            if (_solo[_top[i]].best > blocks) {
+                pos = i;
+                break;
+            }
+        }
+        if (pos >= TOP_N) return;
+        if (n < TOP_N) {
+            _top.push(player);
+            ++n;
+        }
+        for (uint256 j = n - 1; j > pos; --j) _top[j] = _top[j - 1];
+        _top[pos] = player;
+    }
+
+    /// @notice Pool index of word `i` in a solo run with `seed`. Clients compute the same thing locally.
+    function soloWordIndex(bytes32 seed, uint256 i) public view returns (uint256) {
+        return uint256(keccak256(abi.encode(seed, i))) % _pool.length;
+    }
+
+    function poolSize() external view returns (uint256) {
+        return _pool.length;
+    }
+
+    function poolHash(uint256 i) external view returns (bytes8) {
+        return _pool[i];
+    }
+
+    function soloState(address player)
+        external
+        view
+        returns (bytes32 seed, uint64 startBlock, uint32 done, uint32 runs, uint32 best, uint256 blockNumber)
+    {
+        Solo storage s = _solo[player];
+        return (s.seed, s.startBlock, s.done, s.runs, s.best, block.number);
+    }
+
+    /// @notice Solo leaderboard: best blocks for SOLO_WORDS words, ascending.
+    function soloTop() external view returns (address[] memory players, uint32[] memory best, string[] memory names) {
+        uint256 n = _top.length;
+        players = new address[](n);
+        best = new uint32[](n);
+        names = new string[](n);
+        for (uint256 i; i < n; ++i) {
+            players[i] = _top[i];
+            best[i] = _solo[players[i]].best;
+            names[i] = nameOf[players[i]];
         }
     }
 
