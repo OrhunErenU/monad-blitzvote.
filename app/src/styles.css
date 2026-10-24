@@ -205,3 +205,20 @@ a { color: inherit; }
   .key { transition: none; }
 }
 .sfoot .addr { text-transform: none; letter-spacing: 0; }
+
+/* ============================================================ ORGANIZER PANEL */
+.admin { padding-bottom: 40px; }
+.adm { display: flex; flex-direction: column; gap: 12px; padding: 20px 16px; border-bottom: var(--line); }
+.adm .headline { font-size: clamp(30px, 9vw, 44px); }
+.kv { display: grid; grid-template-columns: 7.5em minmax(0, 1fr); align-items: baseline; gap: 10px; font-size: 14px; }
+.kv > span:first-child { font: 700 11px/1 var(--display); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); }
+.kv .mono, .kv a { font-size: 13px; word-break: break-all; }
+.copy { background: none; border: 0; padding: 0; text-align: left; text-decoration: underline; text-underline-offset: 3px; }
+.note { margin: 0; font-size: 13px; line-height: 1.45; color: var(--ink-2); }
+.link-btn { align-self: flex-start; background: none; border: 0; padding: 4px 0; font: 700 13px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; text-decoration: underline; text-underline-offset: 4px; color: var(--ink); }
+.link-btn:disabled { color: var(--ink-3); }
+.keybox { display: block; padding: 10px; border: 1.5px solid var(--fault); font-size: 12px; word-break: break-all; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.grid3 label { display: grid; gap: 6px; font: 700 11px/1 var(--display); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); }
+.field.sm { font-size: 17px; padding: 10px; }
+.log { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 12px; color: var(--ink-2); max-height: 40vh; overflow: auto; }

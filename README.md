@@ -9,8 +9,8 @@ The organizer starts a round with a list of words. Everyone in the room scans a 
 | | |
 |---|---|
 | Contract | `contracts/contracts/BlitzType.sol` on Monad Testnet (chain 10143) |
-| Live app | _add Vercel URL_ · phone: `/` · projector: `/#/screen` |
-| Contract address | _add after `npm run deploy`_ · [MonadVision](https://testnet.monadvision.com) |
+| Live app | https://orhunerenu.github.io/monad-blitzvote./ · phone: `/#/p/<card>` · projector: `/#/screen?c=<contract>` · organizer: `/#/admin` |
+| Contract address | _set after deploy_ · [MonadVision](https://testnet.monadvision.com) |
 
 ## Why it needs the chain
 
@@ -38,6 +38,17 @@ BlitzType puts **the gameplay itself on-chain**, for **the whole room at once**,
 | **Gas charged on the limit** | Limits come from `estimateGas × 1.3`. Cards are funded from measured gas (`npm run rehearse`). |
 | **10 MON reserve balance** | Funding txs are spaced so each qualifies for the "emptying" exception. Players only spend gas. |
 | **Public RPC limits** | Each phone picks a random primary among three public RPCs with fallback, reads go through Multicall3, and the nonce is tracked locally, so one word = one request. Phones barely poll during a race. |
+
+## Run the event from a phone: organizer panel (`/#/admin`)
+
+No terminal needed. The panel creates an organizer wallet in the browser (the key never leaves that device), shows its address to fund with testnet MON, then runs everything:
+
+1. **Deploy** BlitzType straight from the browser (bytecode is bundled). The app picks the address up at runtime via `?c=0x…`, so no rebuild is needed.
+2. **Cards**: generate N burner wallets, fund them via `fund()` (spaced for Monad's reserve-balance rule), and print a QR sheet. Each QR is `…/#/p/<key>?c=<contract>`.
+3. **Round**: words / seconds / countdown → `startRound`. Seconds are converted to blocks from the measured block time. "End now" calls `endRound`.
+4. **Bots**: spawn and fund N fresh wallets that set names and type at human speed, for a load demo or a quiet room.
+
+The CLI scripts below do the same things from a laptop.
 
 ## Run it
 

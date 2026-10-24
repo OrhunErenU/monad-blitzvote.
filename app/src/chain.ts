@@ -37,8 +37,35 @@ const rpcs = rpcList();
 const primary = Math.floor(Math.random() * rpcs.length);
 const ordered = [...rpcs.slice(primary), ...rpcs.slice(0, primary)];
 
+// Contract address, in priority order: `?c=0x…` in the URL (QR cards and share links carry it),
+// the last one this browser used, then the build-time value. Lets the organizer deploy from the
+// panel and go live without a rebuild.
+const ZERO = "0x0000000000000000000000000000000000000000";
+const ADDR_KEY = `blitztype:${chainId}:contract`;
+function runtimeAddress(): string | null {
+  const q = (window.location.hash.split("?")[1] ?? "") + "&" + window.location.search.slice(1);
+  const m = q.match(/(?:^|&)c=(0x[0-9a-fA-F]{40})/);
+  try {
+    if (m) {
+      localStorage.setItem(ADDR_KEY, m[1]);
+      return m[1];
+    }
+    return localStorage.getItem(ADDR_KEY);
+  } catch {
+    return m ? m[1] : null;
+  }
+}
+const buildAddress = (env.VITE_BLITZTYPE_ADDRESS || deployment.address) as string;
+export function rememberContract(address: string) {
+  try {
+    localStorage.setItem(ADDR_KEY, address);
+  } catch {
+    /* ignore */
+  }
+}
+
 export const CONFIG = {
-  address: (env.VITE_BLITZTYPE_ADDRESS || deployment.address) as Address,
+  address: (runtimeAddress() || (buildAddress !== ZERO ? buildAddress : ZERO)) as Address,
   chainId,
   rpcs: ordered,
   deployBlock: BigInt(env.VITE_DEPLOY_BLOCK || deployment.deployBlock || 0),
@@ -176,18 +203,20 @@ export function makeBurner(pk: Hex) {
     return nonce++;
   }
 
-  async function sign(data: Hex, gas: bigint) {
+  type TxOpts = { to?: Address | null; value?: bigint };
+  async function sign(data: Hex, gas: bigint, opts: TxOpts = {}) {
     const fees = await getFees();
+    const to = opts.to === null ? undefined : (opts.to ?? CONFIG.address);
     return account.signTransaction({
       type: "eip1559",
       chainId: CONFIG.chainId,
-      to: CONFIG.address,
+      ...(to ? { to } : {}),
       data,
       gas,
       nonce: await nextNonce(),
       maxFeePerGas: fees.maxFeePerGas,
       maxPriorityFeePerGas: fees.maxPriorityFeePerGas,
-      value: 0n,
+      value: opts.value ?? 0n,
     });
   }
 
@@ -204,9 +233,9 @@ export function makeBurner(pk: Hex) {
   }
 
   /** Waits for inclusion; returns the receipt and how it was obtained. */
-  function sendAndConfirm(data: Hex, gas: bigint): Promise<{ receipt: TransactionReceipt; viaSync: boolean }> {
+  function sendAndConfirm(data: Hex, gas: bigint, opts: TxOpts = {}): Promise<{ receipt: TransactionReceipt; viaSync: boolean }> {
     return enqueue(async () => {
-      const serializedTransaction = await sign(data, gas);
+      const serializedTransaction = await sign(data, gas, opts);
       try {
         if (syncSupported !== false) {
           try {
