@@ -223,4 +223,79 @@ describe("BlitzType", () => {
     console.log(`      startSolo ${start!.gasUsed}, first word ${g[0]}, next ${g[1]}, last ${g[14]}`);
     expect(g[1]).to.be.lessThan(60000n);
   });
+
+  // -------------------------------------------------------------------- rooms
+  function roomWords(seed: string, count: number) {
+    const n = BigInt(SOLO_POOL.length);
+    return Array.from({ length: count }, (_, i) =>
+      SOLO_POOL[Number(BigInt(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(["bytes32", "uint256"], [seed, i]))) % n)]
+    );
+  }
+
+  it("rooms: create with a code, join, only host starts, race with ranks", async () => {
+    const [, host, bob, carol, dave] = await ethers.getSigners();
+    const bt = await ethers.deployContract("BlitzType", ["x", SOLO_POOL]);
+    await expect(bt.connect(host).createRoom(2)).to.be.revertedWithCustomError(bt, "BadWords");
+    await expect(bt.connect(host).createRoom(5)).to.emit(bt, "RoomCreated").withArgs(1001n, host.address, 5n);
+    await expect(bt.connect(bob).joinRoom(999)).to.be.revertedWithCustomError(bt, "NoRoom");
+    await bt.connect(bob).joinRoom(1001);
+    await bt.connect(bob).joinRoom(1001); // idempotent
+    await bt.connect(carol).joinRoom(1001);
+    await bt.connect(bob).setName("bob");
+    let [, , , , wc, players] = await bt.getRoom(1001);
+    expect(wc).to.equal(5n);
+    expect(players).to.equal(3n);
+
+    await expect(bt.connect(bob).startRoom(1001, 2, 100)).to.be.revertedWithCustomError(bt, "NotHost");
+    await expect(bt.connect(bob).typeRoom(1001, "monad")).to.be.revertedWithCustomError(bt, "NotStarted");
+    await bt.connect(host).startRoom(1001, 2, 100);
+    await expect(bt.connect(dave).joinRoom(1001)).to.be.revertedWithCustomError(bt, "RoomStarted");
+    await expect(bt.connect(host).startRoom(1001, 2, 100)).to.be.revertedWithCustomError(bt, "RoomStarted");
+    const [, seed] = await bt.getRoom(1001);
+    const w = roomWords(seed, 5);
+    await expect(bt.connect(dave).typeRoom(1001, w[0])).to.be.revertedWithCustomError(bt, "NotJoined");
+    await mine(1);
+    for (const x of w) await bt.connect(bob).typeRoom(1001, x);
+    await expect(bt.connect(carol).typeRoom(1001, SOLO_POOL.find((y) => y !== w[0])!)).to.be.revertedWithCustomError(bt, "WrongWord");
+    for (const x of w.slice(0, 3)) await bt.connect(carol).typeRoom(1001, x);
+    for (const x of w) await bt.connect(host).typeRoom(1001, x);
+    await expect(bt.connect(bob).typeRoom(1001, w[0])).to.be.revertedWithCustomError(bt, "AlreadyFinished");
+
+    const [addrs, names, done, rank, blocks] = await bt.roomBoard(1001);
+    expect(addrs).to.deep.equal([host.address, bob.address, carol.address]);
+    expect(names[1]).to.equal("bob");
+    expect(done.map(Number)).to.deep.equal([5, 5, 3]);
+    expect(rank.map(Number)).to.deep.equal([2, 1, 0]);
+    expect(blocks[1]).to.be.greaterThan(0n);
+
+    // a second room gets the next code and is independent
+    await bt.connect(carol).createRoom(10);
+    expect(await bt.lastRoom()).to.equal(1002n);
+    [, , , , wc, players] = await bt.getRoom(1002);
+    expect(players).to.equal(1n);
+  });
+
+  it("rooms: typing closes at the end block", async () => {
+    const [, host] = await ethers.getSigners();
+    const bt = await ethers.deployContract("BlitzType", ["x", SOLO_POOL]);
+    await bt.connect(host).createRoom(3);
+    await bt.connect(host).startRoom(1001, 1, 3);
+    const [, seed] = await bt.getRoom(1001);
+    await mine(5);
+    await expect(bt.connect(host).typeRoom(1001, roomWords(seed, 1)[0])).to.be.revertedWithCustomError(bt, "RoundOver");
+  });
+
+  it("solo: keeps the history of every finished run", async () => {
+    const [, alice] = await ethers.getSigners();
+    const bt = await ethers.deployContract("BlitzType", ["x", SOLO_POOL]);
+    for (let r = 0; r < 2; r++) {
+      await bt.connect(alice).startSolo();
+      const w = await soloWords(bt, alice.address);
+      await mine(r * 3);
+      for (const x of w) await bt.connect(alice).typeSolo(x);
+    }
+    const h = await bt.soloHistory(alice.address);
+    expect(h.length).to.equal(2);
+    expect(h[1]).to.be.greaterThan(h[0]);
+  });
 });

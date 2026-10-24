@@ -54,6 +54,28 @@ contract BlitzType {
     mapping(address => Solo) private _solo;
     /// best solo players, sorted by `best` ascending (ties: earlier record first)
     address[] private _top;
+    /// every finished solo run of a player, in blocks (personal history)
+    mapping(address => uint32[]) private _soloHistory;
+
+    // ---------------------------------------------------------------- rooms
+    /// Anyone can open a room; others join with its code; the host starts it; words come from the pool.
+    uint256 public constant MAX_ROOM_PLAYERS = 64;
+
+    struct Room {
+        address host;
+        bytes32 seed; // set at start: picks the room's words from the pool
+        uint64 startBlock; // 0 = lobby (not started)
+        uint64 endBlock;
+        uint8 wordCount;
+        uint16 players;
+        uint16 finishers;
+    }
+
+    uint256 public lastRoom = 1000; // room codes start at 1001
+    mapping(uint256 => Room) private _rooms;
+    mapping(uint256 => address[]) private _roomPlayers;
+    /// room => player => done | rank << 16 | blocksTaken << 32 | joined << 63
+    mapping(uint256 => mapping(address => uint256)) private _roomProg;
 
     event RoundStarted(uint256 indexed round, uint64 startBlock, uint64 endBlock, string[] words);
     event Typed(uint256 indexed round, address indexed player, uint256 wordIndex);
@@ -63,6 +85,11 @@ contract BlitzType {
     event SoloStarted(address indexed player, uint256 run, bytes32 seed);
     event SoloTyped(address indexed player, uint256 wordIndex);
     event SoloFinished(address indexed player, uint256 run, uint256 blocksTaken, bool personalBest);
+    event RoomCreated(uint256 indexed room, address indexed host, uint256 wordCount);
+    event RoomJoined(uint256 indexed room, address indexed player);
+    event RoomStartedEv(uint256 indexed room, uint64 startBlock, uint64 endBlock, bytes32 seed);
+    event RoomTyped(uint256 indexed room, address indexed player, uint256 wordIndex);
+    event RoomFinished(uint256 indexed room, address indexed player, uint256 rank, uint256 blocksTaken);
 
     error NotOrganizer();
     error RoundLive();
@@ -74,6 +101,11 @@ contract BlitzType {
     error BadName();
     error FundingFailed(address player);
     error NoSolo();
+    error NoRoom();
+    error NotHost();
+    error RoomStarted();
+    error RoomFull();
+    error NotJoined();
 
     modifier onlyOrganizer() {
         if (msg.sender != organizer) revert NotOrganizer();
@@ -206,12 +238,135 @@ contract BlitzType {
         if (done == SOLO_WORDS) {
             uint32 blocks = uint32(block.number - start);
             bool pb = s.best == 0 || blocks < s.best;
+            _soloHistory[msg.sender].push(blocks);
             if (pb) {
                 s.best = blocks;
                 _updateTop(msg.sender, blocks);
             }
             emit SoloFinished(msg.sender, s.runs, blocks, pb);
         }
+    }
+
+    // ------------------------------------------------------------------ rooms
+
+    uint256 private constant JOINED = 1 << 63;
+
+    /// @notice Open a room; you are its host and first player. Share the returned code.
+    function createRoom(uint8 wordCount) external returns (uint256 id) {
+        if (wordCount < 3 || wordCount > 40) revert BadWords();
+        id = ++lastRoom;
+        Room storage r = _rooms[id];
+        r.host = msg.sender;
+        r.wordCount = wordCount;
+        emit RoomCreated(id, msg.sender, wordCount);
+        _join(id, r);
+    }
+
+    function joinRoom(uint256 id) external {
+        Room storage r = _rooms[id];
+        if (r.host == address(0)) revert NoRoom();
+        if (r.startBlock != 0) revert RoomStarted();
+        if (_roomProg[id][msg.sender] & JOINED != 0) return; // already in
+        _join(id, r);
+    }
+
+    function _join(uint256 id, Room storage r) private {
+        if (r.players >= MAX_ROOM_PLAYERS) revert RoomFull();
+        _roomProg[id][msg.sender] = JOINED;
+        _roomPlayers[id].push(msg.sender);
+        unchecked {
+            ++r.players;
+        }
+        emit RoomJoined(id, msg.sender);
+    }
+
+    /// @notice Host starts the race: words are drawn now, typing opens after `delayBlocks`.
+    function startRoom(uint256 id, uint64 delayBlocks, uint64 durationBlocks) external {
+        Room storage r = _rooms[id];
+        if (r.host == address(0)) revert NoRoom();
+        if (msg.sender != r.host) revert NotHost();
+        if (r.startBlock != 0) revert RoomStarted();
+        if (delayBlocks == 0 || durationBlocks == 0) revert BadWords();
+        bytes32 seed = keccak256(abi.encode(id, blockhash(block.number - 1), block.prevrandao));
+        r.seed = seed;
+        r.startBlock = uint64(block.number) + delayBlocks;
+        r.endBlock = r.startBlock + durationBlocks - 1;
+        emit RoomStartedEv(id, r.startBlock, r.endBlock, seed);
+    }
+
+    /// @notice Type the next word of the room's race.
+    function typeRoom(uint256 id, string calldata word) external {
+        Room storage r = _rooms[id];
+        uint256 p = _roomProg[id][msg.sender];
+        if (p & JOINED == 0) revert NotJoined();
+        if (r.startBlock == 0 || block.number < r.startBlock) revert NotStarted();
+        if (block.number > r.endBlock) revert RoundOver();
+        uint256 done = uint16(p);
+        uint256 n = r.wordCount;
+        if (done >= n) revert AlreadyFinished();
+        if (bytes8(keccak256(bytes(word))) != _pool[soloWordIndex(r.seed, done)]) revert WrongWord();
+        unchecked {
+            ++done;
+        }
+        emit RoomTyped(id, msg.sender, done - 1);
+        if (done == n) {
+            uint256 rank;
+            unchecked {
+                rank = ++r.finishers;
+            }
+            uint256 blocks = block.number - r.startBlock + 1;
+            _roomProg[id][msg.sender] = JOINED | (blocks << 32) | (rank << 16) | done;
+            emit RoomFinished(id, msg.sender, rank, blocks);
+        } else {
+            _roomProg[id][msg.sender] = JOINED | done;
+        }
+    }
+
+    function getRoom(uint256 id)
+        external
+        view
+        returns (
+            address host,
+            bytes32 seed,
+            uint64 startBlock,
+            uint64 endBlock,
+            uint8 wordCount,
+            uint16 players,
+            uint16 finishers,
+            uint256 blockNumber
+        )
+    {
+        Room storage r = _rooms[id];
+        return (r.host, r.seed, r.startBlock, r.endBlock, r.wordCount, r.players, r.finishers, block.number);
+    }
+
+    /// @notice Everyone in a room with names and live progress (one call for the lobby and the race).
+    function roomBoard(uint256 id)
+        external
+        view
+        returns (address[] memory players, string[] memory names, uint16[] memory done, uint16[] memory rank, uint32[] memory blocks)
+    {
+        address[] storage list = _roomPlayers[id];
+        uint256 n = list.length;
+        players = new address[](n);
+        names = new string[](n);
+        done = new uint16[](n);
+        rank = new uint16[](n);
+        blocks = new uint32[](n);
+        for (uint256 i; i < n; ++i) {
+            address a = list[i];
+            uint256 p = _roomProg[id][a];
+            players[i] = a;
+            names[i] = nameOf[a];
+            done[i] = uint16(p);
+            rank[i] = uint16(p >> 16);
+            blocks[i] = uint32(p >> 32);
+        }
+    }
+
+    /// @notice All finished solo runs of `player`, oldest first, in blocks.
+    function soloHistory(address player) external view returns (uint32[] memory) {
+        return _soloHistory[player];
     }
 
     /// @dev Only runs on a personal best, so the shared leaderboard is rarely written.

@@ -305,6 +305,44 @@ export function soloWords(seed: Hex, pool: readonly string[], count: number): st
   });
 }
 
+export const encodeCreateRoom = (words: number) => encodeFunctionData({ abi: blitzTypeAbi, functionName: "createRoom", args: [words] });
+export const encodeJoinRoom = (id: bigint) => encodeFunctionData({ abi: blitzTypeAbi, functionName: "joinRoom", args: [id] });
+export const encodeStartRoom = (id: bigint, delay: bigint, duration: bigint) =>
+  encodeFunctionData({ abi: blitzTypeAbi, functionName: "startRoom", args: [id, delay, duration] });
+export const encodeRoomWord = (id: bigint, word: string) => encodeFunctionData({ abi: blitzTypeAbi, functionName: "typeRoom", args: [id, word] });
+
+export type RoomInfo = {
+  host: Address;
+  seed: Hex;
+  startBlock: bigint;
+  endBlock: bigint;
+  wordCount: number;
+  players: number;
+  finishers: number;
+  blockNumber: bigint;
+};
+export type RoomPlayer = { player: Address; name: string; done: number; rank: number; blocks: number };
+
+/** Room header + everyone's progress in one multicall round-trip. */
+export async function readRoom(id: bigint): Promise<{ info: RoomInfo; board: RoomPlayer[] }> {
+  const [r, b] = await Promise.all([
+    publicClient.readContract({ ...contract, functionName: "getRoom", args: [id] }),
+    publicClient.readContract({ ...contract, functionName: "roomBoard", args: [id] }),
+  ]);
+  const [host, seed, startBlock, endBlock, wordCount, players, finishers, blockNumber] = r;
+  const [addrs, names, done, rank, blocks] = b;
+  // roomBoard packs a "joined" flag into bit 31 of `blocks`; mask it off
+  return {
+    info: { host, seed, startBlock, endBlock, wordCount: Number(wordCount), players: Number(players), finishers: Number(finishers), blockNumber },
+    board: addrs.map((a, i) => ({ player: a, name: names[i] || `${a.slice(0, 6)}…`, done: Number(done[i]), rank: Number(rank[i]), blocks: Number(blocks[i]) & 0x7fffffff })),
+  };
+}
+
+export async function readSoloHistory(player: Address): Promise<number[]> {
+  const h = await publicClient.readContract({ ...contract, functionName: "soloHistory", args: [player] });
+  return h.map(Number);
+}
+
 export const encodeName = (name: string) => encodeFunctionData({ abi: blitzTypeAbi, functionName: "setName", args: [name] });
 
 /** Last ~10 s of observed block heads → ms per block (Monad ≈ 300–400 ms). */
@@ -346,6 +384,11 @@ export function shortErr(e: unknown): string {
     AlreadyFinished: "Bu turu zaten bitirdin.",
     BadName: "İsim 1–16 karakter olmalı.",
     NoSolo: "Önce bireysel testi başlat.",
+    NoRoom: "Bu kodla oda yok.",
+    RoomStarted: "Bu oda yarışa başlamış, yenisine katıl.",
+    RoomFull: "Oda dolu.",
+    NotHost: "Yarışı sadece oda sahibi başlatabilir.",
+    NotJoined: "Bu odada değilsin.",
   };
   if (name && map[name]) return map[name];
   const msg = any?.shortMessage || any?.message || String(e);

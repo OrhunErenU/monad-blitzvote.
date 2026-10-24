@@ -44,7 +44,22 @@ export const blitzTypeAbi = [
   },
   {
     "inputs": [],
+    "name": "NoRoom",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "NoSolo",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotHost",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotJoined",
     "type": "error"
   },
   {
@@ -55,6 +70,16 @@ export const blitzTypeAbi = [
   {
     "inputs": [],
     "name": "NotStarted",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "RoomFull",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "RoomStarted",
     "type": "error"
   },
   {
@@ -139,6 +164,137 @@ export const blitzTypeAbi = [
       }
     ],
     "name": "Named",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "room",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "host",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "wordCount",
+        "type": "uint256"
+      }
+    ],
+    "name": "RoomCreated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "room",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "player",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "rank",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "blocksTaken",
+        "type": "uint256"
+      }
+    ],
+    "name": "RoomFinished",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "room",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "player",
+        "type": "address"
+      }
+    ],
+    "name": "RoomJoined",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "room",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "startBlock",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "endBlock",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "seed",
+        "type": "bytes32"
+      }
+    ],
+    "name": "RoomStartedEv",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "room",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "player",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "wordIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "RoomTyped",
     "type": "event"
   },
   {
@@ -287,6 +443,19 @@ export const blitzTypeAbi = [
   },
   {
     "inputs": [],
+    "name": "MAX_ROOM_PLAYERS",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "MAX_WORDS",
     "outputs": [
       {
@@ -322,6 +491,25 @@ export const blitzTypeAbi = [
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint8",
+        "name": "wordCount",
+        "type": "uint8"
+      }
+    ],
+    "name": "createRoom",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -421,6 +609,60 @@ export const blitzTypeAbi = [
         "type": "uint256"
       }
     ],
+    "name": "getRoom",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "host",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "seed",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint64",
+        "name": "startBlock",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "endBlock",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint8",
+        "name": "wordCount",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint16",
+        "name": "players",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint16",
+        "name": "finishers",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint256",
+        "name": "blockNumber",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      }
+    ],
     "name": "getRound",
     "outputs": [
       {
@@ -446,6 +688,32 @@ export const blitzTypeAbi = [
       {
         "internalType": "uint256",
         "name": "finishers",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      }
+    ],
+    "name": "joinRoom",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "lastRoom",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
         "type": "uint256"
       }
     ],
@@ -572,6 +840,45 @@ export const blitzTypeAbi = [
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      }
+    ],
+    "name": "roomBoard",
+    "outputs": [
+      {
+        "internalType": "address[]",
+        "name": "players",
+        "type": "address[]"
+      },
+      {
+        "internalType": "string[]",
+        "name": "names",
+        "type": "string[]"
+      },
+      {
+        "internalType": "uint16[]",
+        "name": "done",
+        "type": "uint16[]"
+      },
+      {
+        "internalType": "uint16[]",
+        "name": "rank",
+        "type": "uint16[]"
+      },
+      {
+        "internalType": "uint32[]",
+        "name": "blocks",
+        "type": "uint32[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "string",
         "name": "name",
         "type": "string"
@@ -580,6 +887,25 @@ export const blitzTypeAbi = [
     "name": "setName",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "player",
+        "type": "address"
+      }
+    ],
+    "name": "soloHistory",
+    "outputs": [
+      {
+        "internalType": "uint32[]",
+        "name": "",
+        "type": "uint32[]"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -676,6 +1002,29 @@ export const blitzTypeAbi = [
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint64",
+        "name": "delayBlocks",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "durationBlocks",
+        "type": "uint64"
+      }
+    ],
+    "name": "startRoom",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "string[]",
         "name": "words",
         "type": "string[]"
@@ -760,6 +1109,24 @@ export const blitzTypeAbi = [
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "word",
+        "type": "string"
+      }
+    ],
+    "name": "typeRoom",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

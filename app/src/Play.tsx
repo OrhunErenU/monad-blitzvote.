@@ -17,6 +17,7 @@ import {
   type GameState,
 } from "./chain";
 import Solo from "./Solo";
+import Room from "./Room";
 import { Segments, Shell } from "./ui";
 
 type Result = { rank: number; blocks: number };
@@ -26,9 +27,9 @@ const pad = (est: bigint, ceil: bigint) => {
   return g > ceil ? ceil : g;
 };
 
-type Mode = "race" | "solo";
+type Mode = "room" | "solo" | "race"; // race = organizer stage round (projector)
 
-export default function Play({ pk, initialMode = "race" }: { pk: Hex; initialMode?: Mode }) {
+export default function Play({ pk, initialMode = "room" }: { pk: Hex; initialMode?: Mode }) {
   const [mode, setMode] = useState<Mode>(initialMode);
   const burner = useMemo(() => makeBurner(pk), [pk]);
   const address = burner.account.address;
@@ -90,7 +91,7 @@ export default function Play({ pk, initialMode = "race" }: { pk: Hex; initialMod
   useEffect(() => {
     refresh();
     // fast polling only around the countdown; during the race the chain answers our own txs
-    const ms = mode === "solo" ? 8000 : phase === "countdown" ? 1000 : phase === "live" ? 5000 : 2500;
+    const ms = mode !== "race" ? 8000 : phase === "countdown" ? 1000 : phase === "live" ? 5000 : 2500;
     const id = setInterval(refresh, ms);
     return () => clearInterval(id);
   }, [refresh, phase, mode]);
@@ -221,13 +222,18 @@ export default function Play({ pk, initialMode = "race" }: { pk: Hex; initialMod
 
   const roundOn = phase === "countdown" || phase === "live";
   const tabs = (
-    <nav className="tabs" aria-label="Mod">
-      <button className={mode === "race" ? "on" : ""} onClick={() => setMode("race")}>
-        Salon yarışı{roundOn && mode !== "race" ? <i className="dot" aria-label="canlı" /> : null}
+    <nav className={`tabs${roundOn || mode === "race" ? " t3" : ""}`} aria-label="Mod">
+      <button className={mode === "room" ? "on" : ""} onClick={() => setMode("room")} lang="en">
+        Online
       </button>
       <button className={mode === "solo" ? "on" : ""} onClick={() => setMode("solo")}>
-        Bireysel test
+        Bireysel
       </button>
+      {(roundOn || mode === "race") && (
+        <button className={mode === "race" ? "on" : ""} onClick={() => setMode("race")}>
+          Sahne{roundOn && mode !== "race" ? <i className="dot" aria-label="canlı" /> : null}
+        </button>
+      )}
     </nav>
   );
 
@@ -236,8 +242,8 @@ export default function Play({ pk, initialMode = "race" }: { pk: Hex; initialMod
       <Shell status={<span className="status">Kayıt</span>}>
         <form className="pbody" onSubmit={saveName}>
           <span className="kicker">Adım 1 / 1</span>
-          <h1 className="headline">Projektörde adın ne yazsın?</h1>
-          <p className="lede">Yarış tablosunda bu görünecek. Kaydetmek de bir Monad işlemi.</p>
+          <h1 className="headline">Adın ne yazsın?</h1>
+          <p className="lede">Odada, rekor tablosunda ve projektörde bu görünecek. Kaydetmek de bir Monad işlemi.</p>
           <input
             className="field"
             value={name}
@@ -255,6 +261,21 @@ export default function Play({ pk, initialMode = "race" }: { pk: Hex; initialMod
           </button>
           {err && <p className="err">{err}</p>}
         </form>
+        {footer}
+      </Shell>
+    );
+  }
+
+  if (st && mode === "room") {
+    return (
+      <Shell status={<span className="status" lang="en">Online</span>}>
+        {tabs}
+        <Room burner={burner} name={st.myName} clock={clock.current} onErr={setErr} />
+        {err && (
+          <div className="toast" role="alert" onClick={() => setErr(null)}>
+            {err}
+          </div>
+        )}
         {footer}
       </Shell>
     );
@@ -311,8 +332,8 @@ export default function Play({ pk, initialMode = "race" }: { pk: Hex; initialMod
             <span className="kicker">Hazırsın, {st?.myName}</span>
             <h1 className="headline">Salon turu başlayınca kelimeler burada belirecek</h1>
             <p className="lede">Ekranı açık tut. Beklerken bireysel testte rekorunu zorla; tur başlayınca sekmede işaret çıkar.</p>
-            <button className="btn ghost" onClick={() => setMode("solo")}>
-              Bireysel teste geç
+            <button className="btn ghost" onClick={() => setMode("room")}>
+              Online odaya geç
             </button>
           </>
         )}
@@ -407,10 +428,14 @@ export function Landing() {
     <Shell status={<span className="onmonad" lang="en">on Monad</span>}>
       <div className="pbody">
         <span className="kicker">Zincir üstünde yazma hızı</span>
-        <h1 className="headline">Kartındaki QR'ı okut</h1>
-        <p className="lede">Cüzdan ve gas hazır gelir. İki mod var: salonla aynı anda yarış ya da tek başına {15} kelimelik hız testi. Her doğru kelime bir Monad işlemi; sırayı ve süreyi zincir belirler.</p>
-        <a className="btn" href="#/solo" style={{ display: "grid", placeItems: "center", textDecoration: "none" }}>
-          Kartın yok mu? Bireysel test
+        <h1 className="headline">Yaz. Her kelime zincirde.</h1>
+        <p className="lede">Kartın varsa QR'ı okut; yoksa "Kartsız oyna" tarayıcında cüzdan açar. Online oda kur ve kodla arkadaşlarını çağır ya da tek başına 15 kelimelik hız testinde rekorunu kovala. Her doğru kelime bir Monad işlemi; sırayı ve süreyi zincir belirler.</p>
+        <a
+          className="btn"
+          href={`#/play${location.hash.match(/[?&]room=\d+/) ? "?" + location.hash.match(/room=\d+/)![0] : ""}`}
+          style={{ display: "grid", placeItems: "center", textDecoration: "none" }}
+        >
+          Kartsız oyna
         </a>
         <a className="btn ghost" href="#/screen" style={{ display: "grid", placeItems: "center", textDecoration: "none" }}>
           Projektör ekranı

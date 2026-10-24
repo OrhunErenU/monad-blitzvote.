@@ -8,6 +8,7 @@ import {
   explorerTx,
   publicClient,
   readSolo,
+  readSoloHistory,
   readSoloTop,
   shortErr,
   soloWords,
@@ -54,6 +55,7 @@ export default function Solo({
   const [best, setBest] = useState(0);
   const [runs, setRuns] = useState(0);
   const [top, setTop] = useState<SoloEntry[]>([]);
+  const [history, setHistory] = useState<number[]>([]);
   const [done, setDone] = useState<Done | null>(null);
   const [latency, setLatency] = useState<{ secs: number; block: bigint; hash: string } | null>(null);
   const t0 = useRef(0); // local clock when the words appeared (0 = resumed run, no local timing)
@@ -65,7 +67,8 @@ export default function Solo({
 
   const loadBoard = useCallback(async () => {
     try {
-      const [s, t] = await Promise.all([readSolo(address), readSoloTop()]);
+      const [s, t, h] = await Promise.all([readSolo(address), readSoloTop(), readSoloHistory(address)]);
+      setHistory(h);
       setBest(s.best);
       setRuns(s.runs);
       setTop(t);
@@ -286,7 +289,13 @@ export default function Solo({
           </a>
         )}
 
-        {phase !== "live" && <Board top={top} me={address} ms={ms} />}
+        {phase !== "live" && <History runs={history} ms={ms} />}
+        {phase !== "live" && (
+          <>
+            <span className="kicker">Herkes · ilk 10</span>
+            <Board top={top} me={address} ms={ms} />
+          </>
+        )}
       </div>
     </>
   );
@@ -305,5 +314,53 @@ export function Board({ top, me, ms }: { top: SoloEntry[]; me?: Address; ms: num
         </li>
       ))}
     </ol>
+  );
+}
+
+/** Personal history from the contract: last runs as bars (shorter = faster), best marked. */
+function History({ runs, ms }: { runs: number[]; ms: number }) {
+  if (runs.length === 0) return null;
+  const best = Math.min(...runs);
+  const last = runs.slice(-12);
+  const first = runs.length - last.length;
+  const max = Math.max(...last);
+  const avg = runs.reduce((a, b) => a + b, 0) / runs.length;
+  const prev = runs.length > 1 ? runs[runs.length - 2] : null;
+  const latest = runs[runs.length - 1];
+  return (
+    <section className="hist" aria-label="Geçmiş turların">
+      <div className="hist-head">
+        <span className="kicker">Geçmiş turların · {runs.length}</span>
+        <span className="hist-stats">
+          rekor <b>{best}</b> · ort {avg.toFixed(0)}
+          {prev !== null && (
+            <em className={latest <= prev ? "up" : "down"}>
+              {latest <= prev ? "▲" : "▼"} {Math.abs(prev - latest)} blok
+            </em>
+          )}
+        </span>
+      </div>
+      <div className="hist-bars">
+        {last.map((b, i) => (
+          <div key={i} className={`hb${b === best ? " best" : ""}${i === last.length - 1 ? " now" : ""}`} title={`Tur ${first + i + 1}: ${b} blok`}>
+            <i style={{ height: `${Math.max(8, (b / max) * 100)}%` }} />
+            <span>{first + i + 1}</span>
+          </div>
+        ))}
+      </div>
+      <ol className="hist-list">
+        {[...runs.keys()]
+          .reverse()
+          .slice(0, 6)
+          .map((i) => (
+            <li key={i} className={runs[i] === best ? "best" : ""}>
+              <span>Tur {i + 1}</span>
+              <span>{runs[i]} blok</span>
+              <span>≈{((runs[i] * ms) / 1000).toFixed(1)} sn</span>
+              <span>{runs[i] === best ? "rekor" : `+${runs[i] - best}`}</span>
+            </li>
+          ))}
+      </ol>
+    </section>
   );
 }

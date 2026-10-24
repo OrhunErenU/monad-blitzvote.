@@ -24,7 +24,7 @@ export default function App() {
 
   // no card: #/solo makes a wallet in this browser; the player funds it themselves
   useEffect(() => {
-    if (route.startsWith("/solo") && !pk) {
+    if ((route.startsWith("/solo") || route.startsWith("/play")) && !pk) {
       const key = generatePrivateKey();
       saveKey(key);
       setPk(key);
@@ -47,6 +47,7 @@ export default function App() {
   }
   if (route.startsWith("/screen")) return <Race />;
   if (route.startsWith("/solo")) return pk ? <Play pk={pk} initialMode="solo" /> : null;
+  if (route.startsWith("/play")) return pk ? <Play pk={pk} initialMode="room" /> : null;
   if (pk) return <Play pk={pk} />;
   if (route.startsWith("/p/")) return null;
   return <Landing />;

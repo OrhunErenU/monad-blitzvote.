@@ -20,10 +20,10 @@ Gönderim, Monad'ın şehir reposunun (örn. `monad-developers/monad-blitz-<şeh
 ⚠️ **10 MON rezerv kuralı:** Bakiyen 10 MON'un altındaysa, MON gönderen işlem ancak son 3 blokta başka işlem atmadıysan geçer. `npm run cards` bunu otomatik bekleyerek hallediyor. En rahatı: cüzdanda 10 MON + kart bütçesi.
 
 ## Deploy durumu (24 Eki, tamam)
-- Kontrat: `0x7D75427Db842a177599dEBEC6DFc8b853DE9F310` (Monad testnet, Sourcify "perfect")
+- Kontrat: `0x7740bb132eb527A16a4A8755a4e853cDAca16C2c` (Monad testnet, Sourcify "perfect")
 - Uygulama: https://orhunerenu.github.io/monad-blitzvote./ (adres build'e gömülü, `?c=` gerekmez)
 - Organizatör cüzdanı = deploy eden cüzdan. Panelde kullanmak için: `…/#/admin/<o cüzdanın anahtarı>` (anahtar URL'den hemen silinir)
-- İki mod: **Salon yarışı** (organizatör turu başlatır) ve **Bireysel test** (telefonda sekme; kartsız `…/#/solo`)
+- Modlar: **Online oda** (kur → kodu paylaş → katıl → host başlatır), **Bireysel** (geçmiş + rekor), **Sahne** (organizatör turu, projektör). Kartsız: `…/#/play`
 
 ## En hızlı yol: telefondan organizatör paneli
 1. **(Tek seferlik)** GitHub → repo → **Settings → Pages → Source: GitHub Actions**. Ardından Actions sekmesinde "Deploy app to GitHub Pages" workflow'unu çalıştır (ya da bir push bekle). Uygulama adresi: `https://orhunerenu.github.io/monad-blitzvote./`

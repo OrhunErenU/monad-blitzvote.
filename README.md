@@ -2,10 +2,11 @@
 
 **On-chain typing speed: race the whole room, or beat your own record. Every correct word is a Monad transaction.**
 
-Two modes, one contract:
+Three ways to play, one contract:
 
-- **Room race** (online, everyone at once): the organizer starts a round, the whole room types the same words, the projector shows live lanes and the podium.
-- **Solo test** (individual, any time, Monkeytype-style): `startSolo()` draws 15 words for you on-chain, you type them, and your score is the number of blocks from start to your last word. Personal bests and a top-10 board live in the contract.
+- **Online rooms**: anyone opens a room and gets a code (`createRoom`), friends join with the code or an invite link (`joinRoom`), the host starts (`startRoom`) and everyone races live. Words are drawn from the on-chain pool at start; each player's progress, rank and blocks taken live in the contract (`roomBoard`).
+- **Stage round** (event mode): the organizer starts a round for the whole hall from `/#/admin`; the projector shows live lanes and the podium.
+- **Solo test** (individual, any time, Monkeytype-style): `startSolo()` draws 15 words for you on-chain, you type them, and your score is the number of blocks from start to your last word. Personal bests, the full history of your runs (`soloHistory`) and a top-10 board live in the contract.
 
 The organizer starts a round with a list of words. Everyone in the room scans a QR card (a pre-funded burner wallet, no install, no pop-ups), picks a name, and races to type the words on their phone. **Each correct word is submitted on-chain and checked against its hash by the contract**, so no one can skip a word or fake progress, and **finish order is decided by consensus, not a game server**. The projector shows live lanes, words per block and the podium.
 
@@ -15,7 +16,7 @@ The organizer starts a round with a list of words. Everyone in the room scans a 
 |---|---|
 | Contract | `contracts/contracts/BlitzType.sol` on Monad Testnet (chain 10143) |
 | Live app | https://orhunerenu.github.io/monad-blitzvote./ · phone: `/#/p/<card>` · solo without a card: `/#/solo` · projector: `/#/screen` · organizer: `/#/admin` |
-| Contract address | [`0x7D75427Db842a177599dEBEC6DFc8b853DE9F310`](https://testnet.monadvision.com/address/0x7D75427Db842a177599dEBEC6DFc8b853DE9F310) (verified, Sourcify "perfect") |
+| Contract address | [`0x7740bb132eb527A16a4A8755a4e853cDAca16C2c`](https://testnet.monadvision.com/address/0x7740bb132eb527A16a4A8755a4e853cDAca16C2c) (verified, Sourcify "perfect") |
 
 ## Why it needs the chain
 
@@ -64,7 +65,7 @@ Requirements: Node 20+, a Monad testnet wallet with MON (≥ 10 MON is easiest b
 cd contracts
 npm install
 cp .env.example .env         # PRIVATE_KEY, later APP_URL
-npm test                     # 15 tests incl. a 50-player race and solo mode
+npm test                     # 18 tests incl. a 50-player race, rooms and solo mode
 
 npm run rehearse             # throwaway deploy: real gas per word, sync-receipt support, latency
 npm run deploy               # writes app/src/deployment.json (commit it)
@@ -99,11 +100,12 @@ npx hardhat run scripts/simulate.ts --network localhost
 ## Repo map
 ```
 contracts/contracts/BlitzType.sol   rounds · on-chain word check · per-player progress · finish order · names · funding · solo runs + top 10
-contracts/test/BlitzType.test.ts    15 tests (countdown/end block, wrong words, order, podium, 50 concurrent players, solo, gas)
+contracts/test/BlitzType.test.ts    18 tests (countdown/end block, wrong words, order, podium, 50 concurrent players, rooms, solo + history, gas)
 contracts/scripts/                  deploy · rehearse · verify · make-cards · round · simulate · leaderboard · words
 app/src/chain.ts                    RPC fallback, Multicall3, burner signer (local nonce, cached fees, sync send)
 app/src/Play.tsx                    phone: name → mode tabs (room race / solo) → countdown → type → rank
-app/src/Solo.tsx                    phone: solo test, personal best, top 10
+app/src/Room.tsx                    phone: create / join by code → lobby → countdown → live race with everyone's progress
+app/src/Solo.tsx                    phone: solo test, personal best, run history, top 10
 app/src/Race.tsx                    projector: lanes, words per block, podium; solo records between rounds
 ```
 
