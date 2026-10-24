@@ -188,88 +188,117 @@ export default function Race() {
   const maxBar = Math.max(1, record, ...bars.map((b) => b.count));
   const podium = lanes.filter((l) => l.rank).slice(0, 3);
 
+  const leaderDone = lanes[0]?.done ?? 0;
+  const statusLabel =
+    phase === "idle" ? "Bekleniyor" : phase === "countdown" ? "Geri sayım" : phase === "live" ? "Canlı" : "Bitti";
+
   return (
     <div className="screen">
-      <header className="shead">
-        <div className="brand big">
-          Blitz<span>Type</span>
+      <header className="sbar">
+        <div>
+          <span className="wordmark" lang="en">
+            BlitzType<span className="cur" />
+          </span>
         </div>
-        <div className="ev">{eventName}</div>
-        <div className={`pill ${phase}`}>
-          {phase === "idle" ? "Bekleniyor" : `Tur ${st?.round} · ${phase === "countdown" ? "Geri sayım" : phase === "live" ? "Yarış" : "Bitti"}`}
-        </div>
+        <div className="ev" lang="en">{eventName}</div>
+        <div className="rnd">{st?.round ? `Tur ${st.round}` : "—"}</div>
+        <div className={`st ${phase}`}>{statusLabel}</div>
       </header>
 
-      <main className="sgrid">
-        <section className="hero">
-          {phase === "countdown" ? (
-            <>
-              <div className="label">Başlıyor</div>
-              <div className="counter mono">{countdown}</div>
-              <div className="sub">{total} kelime · her doğru kelime bir Monad işlemi · sırayı zincir belirler</div>
-            </>
-          ) : (
-            <>
-              <div className="label">Bu turda zincire yazılan kelime</div>
-              <div className="counter mono">{txCount.toLocaleString("tr-TR")}</div>
-              <div className="sub">
-                <span className="mono">{tps.toFixed(1)}</span> tx/sn · blok başına rekor <span className="mono">{record}</span> · blok{" "}
-                <span className="mono">#{head.toString()}</span>
-                {phase === "live" && (
-                  <>
-                    {" "}
-                    · kalan <span className="mono">{left} sn</span>
-                  </>
-                )}
+      {phase === "countdown" ? (
+        <main className="s-take">
+          <div>
+            <div className="sub">Başlıyor · {total} kelime</div>
+            <div className="giant">{countdown}</div>
+            <div className="sub">Her doğru kelime bir Monad işlemi · sırayı zincir belirler</div>
+          </div>
+        </main>
+      ) : (
+        <main className="sgrid">
+          <section className="tower" aria-label="Sıralama">
+            {phase === "over" && podium.length > 0 && (
+              <div className="podium">
+                <div className="chequer" aria-hidden />
+                <div className="rows">
+                  {podium.map((p) => (
+                    <div key={p.k} className={`pr${p.rank === 1 ? " first" : ""}`}>
+                      <span className="k1">{p.rank}</span>
+                      <span className="nm">{label(p.k)}</span>
+                      <span className="bk">{p.blocks} blok</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </>
-          )}
-          {phase !== "idle" && words.length > 0 && <div className="wordstrip mono">{words.join(" · ")}</div>}
-          <div className="bars" aria-hidden>
-            {bars.map((b) => (
-              <div key={b.n.toString()} className="bar" style={{ height: `${(b.count / maxBar) * 100}%` }}>
-                {b.count > 0 && b.count === maxBar && <span>{b.count}</span>}
+            )}
+            <div className="thead">
+              <span>Sıra</span>
+              <span>Yarışçı · {lanes.length}</span>
+              <span>Kelimeler</span>
+              <span style={{ textAlign: "right" }}>Fark</span>
+            </div>
+            {lanes.slice(0, phase === "over" && podium.length ? LANES - 4 : LANES).map((p, i) => (
+              <div key={p.k} className={`trow${i === 0 && phase === "live" ? " leader" : ""}${p.rank ? " fin" : ""}`}>
+                <span className="p">{p.rank ?? i + 1}</span>
+                <span className="n">{label(p.k)}</span>
+                <span className="bar" aria-label={`${p.done}/${total}`}>
+                  {Array.from({ length: total }, (_, w) => (
+                    <span key={w} className={w < p.done ? "on" : ""} />
+                  ))}
+                </span>
+                <span className={`g${p.rank ? " fin" : ""}`}>
+                  {p.rank ? `${p.blocks} blok` : i === 0 ? `${p.done}/${total}` : `−${leaderDone - p.done}`}
+                </span>
               </div>
             ))}
-          </div>
-          <div className="barlabel">Her çubuk bir Monad bloğu (~{Math.round(ms)} ms): o blokta onaylanan kelime sayısı</div>
-        </section>
+            {lanes.length === 0 && <div className="tempty">{phase === "idle" ? "Tur bekleniyor…" : "İlk kelime bekleniyor…"}</div>}
+          </section>
 
-        <section className="side">
-          {phase === "over" && podium.length > 0 ? (
-            <div className="card podium">
-              <div className="label">Podyum</div>
-              {podium.map((p) => (
-                <div key={p.k} className={`pod r${p.rank}`}>
-                  <span className="mono">{p.rank}</span>
-                  <b>{label(p.k)}</b>
-                  <span className="dim mono">{p.blocks} blok</span>
-                </div>
-              ))}
+          <section className="telemetry">
+            <div className="tele-top">
+              <span className="kicker">Bu turda zincire yazılan kelime</span>
+              <div className="bignum">{txCount.toLocaleString("tr-TR")}</div>
             </div>
-          ) : null}
-          <div className="card">
-            <div className="label">
-              Yarışçılar · {lanes.length} · bitiren {lanes.filter((l) => l.rank).length}
+            <div className="metrics">
+              <div>
+                <div className="v">{tps.toFixed(1)}</div>
+                <div className="k">tx / sn</div>
+              </div>
+              <div>
+                <div className="v">{record}</div>
+                <div className="k">blok başına rekor</div>
+              </div>
+              <div>
+                <div className="v">{phase === "live" ? `${left} sn` : `#${head.toString()}`}</div>
+                <div className="k">{phase === "live" ? "kalan süre" : "blok"}</div>
+              </div>
             </div>
-            <ul className="lanes">
-              {lanes.slice(0, LANES).map((p, i) => (
-                <li key={p.k} className={p.rank ? "fin" : ""}>
-                  <span className="mono pos">{p.rank ?? i + 1}</span>
-                  <span className="lname">{label(p.k)}</span>
-                  <span className="lbar">
-                    <span style={{ width: `${total ? (p.done / total) * 100 : 0}%` }} />
-                  </span>
-                  <span className="mono lcount">{p.rank ? "✓" : `${p.done}/${total}`}</span>
-                </li>
-              ))}
-              {lanes.length === 0 && <li className="dim empty">{phase === "idle" ? "Tur bekleniyor…" : "İlk kelime bekleniyor…"}</li>}
-            </ul>
-          </div>
-        </section>
-      </main>
+            <div className="strip" aria-hidden>
+              <div className="cols">
+                {bars.map((b) => (
+                  <div
+                    key={b.n.toString()}
+                    className={`col${b.count > 0 && b.count === maxBar ? " peak" : ""}`}
+                    style={{ height: `${(b.count / maxBar) * 100}%` }}
+                  >
+                    {b.count > 0 && b.count === maxBar && <span>{b.count}</span>}
+                  </div>
+                ))}
+              </div>
+              <div className="cap">
+                <span>Her sütun bir Monad bloğu · ~{Math.round(ms)} ms</span>
+                <span>blok #{head.toString()}</span>
+              </div>
+            </div>
+            {words.length > 0 && <div className="wordline">{words.join("  ")}</div>}
+          </section>
+        </main>
+      )}
 
-      <footer className="keys dim">F tam ekran · {CONFIG.address.slice(0, 8)}…</footer>
+      <footer className="sfoot">
+        <span className="onmonad" lang="en">on Monad testnet</span>
+        <span className="addr">{CONFIG.address}</span>
+        <span>F · tam ekran</span>
+      </footer>
     </div>
   );
 }

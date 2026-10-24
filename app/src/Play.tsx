@@ -63,7 +63,6 @@ export default function Play({ pk }: { pk: Hex }) {
         setLatency(null);
         setInput("");
       } else if (inflight.current === 0) {
-        // nothing pending: trust the chain
         setConfirmed(s.myProgress);
         setIdx((i) => (i < s.myProgress ? s.myProgress : i));
       }
@@ -141,7 +140,6 @@ export default function Play({ pk }: { pk: Hex }) {
     } catch (e) {
       setErr(shortErr(e));
       wordGas.current = null;
-      // resync with the chain: the next word to type is whatever the contract says
       try {
         const s = await readState(address);
         setIdx(s.myProgress);
@@ -167,9 +165,8 @@ export default function Play({ pk }: { pk: Hex }) {
       return;
     }
     if (clean.endsWith(" ")) {
-      // space on a wrong word: shake, keep the text without the space
       setShake(true);
-      setTimeout(() => setShake(false), 300);
+      setTimeout(() => setShake(false), 280);
       setInput(typed);
       return;
     }
@@ -182,15 +179,27 @@ export default function Play({ pk }: { pk: Hex }) {
   const countdownSecs = st ? Math.max(0, Math.ceil((Number(st.startBlock - now) * ms) / 1000)) : 0;
   const leftSecs = st ? Math.max(0, Math.ceil((Number(st.endBlock - now) * ms) / 1000)) : 0;
   const target = words[idx] ?? "";
-  const ok = target.startsWith(input.trim());
+  const typed = input.trim();
+  const wrongAt = [...typed].findIndex((ch, i) => target[i] !== ch);
+
+  const footer = (
+    <footer className="pfoot">
+      <span>
+        {address.slice(0, 6)}…{address.slice(-4)}
+      </span>
+      <span>{balance === null ? "…" : Number(formatEther(balance)).toFixed(4)} MON</span>
+    </footer>
+  );
 
   if (st && !st.myName) {
     return (
-      <Shell round={st.round} label="Hoş geldin">
-        <form className="namebox" onSubmit={saveName}>
-          <h2>Adın ne?</h2>
-          <p className="dim">Projektördeki yarış şeridinde bu görünecek. Bu da bir Monad işlemi.</p>
+      <Shell status={<span className="status">Kayıt</span>}>
+        <form className="pbody" onSubmit={saveName}>
+          <span className="kicker">Adım 1 / 1</span>
+          <h1 className="headline">Projektörde adın ne yazsın?</h1>
+          <p className="lede">Yarış tablosunda bu görünecek. Kaydetmek de bir Monad işlemi.</p>
           <input
+            className="field"
             value={name}
             onChange={(e) => setName(e.target.value.slice(0, 16))}
             placeholder="ör. Obu"
@@ -199,136 +208,165 @@ export default function Play({ pk }: { pk: Hex }) {
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
+            aria-label="Takma ad"
           />
-          <button className="primary" disabled={!name.trim() || savingName}>
+          <button className="btn" disabled={!name.trim() || savingName}>
             {savingName ? "Zincire yazılıyor…" : "Kaydet"}
           </button>
           {err && <p className="err">{err}</p>}
         </form>
+        {footer}
+      </Shell>
+    );
+  }
+
+  if (phase === "countdown") {
+    return (
+      <Shell status={<span className="status countdown">Tur {st?.round} · Hazır</span>}>
+        <div className="takeover">
+          <span className="kicker">Başlıyor</span>
+          <div className="giant">{countdownSecs}</div>
+          <span className="kicker">{st?.wordCount} kelime · her doğru kelime bir Monad işlemi</span>
+        </div>
       </Shell>
     );
   }
 
   return (
-    <Shell round={st?.round ?? 0} label={st?.myName ?? "…"}>
-      {phase === "idle" && (
-        <div className="center">
-          <h2>Yarış bekleniyor</h2>
-          <p className="dim">Organizatör turu başlatınca kelimeler burada belirecek. Ekranı açık tut.</p>
-        </div>
-      )}
+    <Shell
+      status={
+        <span className={`status ${phase === "live" ? "live" : phase === "over" || phase === "finished" ? "over" : ""}`}>
+          {phase === "idle" ? "Bekleniyor" : `Tur ${st?.round} · ${phase === "live" ? "Canlı" : "Bitti"}`}
+        </span>
+      }
+    >
+      <div className="pmeta">
+        <span>{st?.myName ?? "…"}</span>
+        {phase === "live" && (
+          <span>
+            {idx}/{words.length} · {leftSecs} sn
+          </span>
+        )}
+      </div>
 
-      {phase === "countdown" && (
-        <div className="center">
-          <div className="count mono">{countdownSecs}</div>
-          <p className="dim">{st?.wordCount} kelime · her doğru kelime bir Monad işlemi</p>
-        </div>
-      )}
+      <div className="pbody">
+        {phase === "idle" && (
+          <>
+            <span className="kicker">Hazırsın, {st?.myName}</span>
+            <h1 className="headline">Yarış başlayınca kelimeler burada belirecek</h1>
+            <p className="lede">Ekranı açık tut. Geri sayım hem burada hem projektörde görünür.</p>
+          </>
+        )}
 
-      {phase === "live" && (
-        <section className="race">
-          <div className="meta">
-            <span className="mono">
-              {idx}/{words.length}
+        {phase === "live" && (
+          <>
+            <div className={`keys${shake ? " shake" : ""}`} aria-label={`Yazılacak kelime: ${target}`}>
+              {[...target].map((ch, i) => (
+                <span
+                  key={i}
+                  className={`key${i < typed.length ? (wrongAt !== -1 && i >= wrongAt ? " miss" : " hit") : ""}`}
+                >
+                  {ch}
+                </span>
+              ))}
+            </div>
+            <div className="upnext">
+              <b>{words[idx + 1] ?? ""}</b> {words.slice(idx + 2, idx + 4).join(" ")}
+            </div>
+            <input
+              ref={inputRef}
+              className={`field${wrongAt !== -1 ? " wrong" : ""}`}
+              value={input}
+              onChange={(e) => onType(e.target.value)}
+              autoCapitalize="none"
+              autoCorrect="off"
+              autoComplete="off"
+              spellCheck={false}
+              enterKeyHint="next"
+              placeholder="yaz…"
+              aria-label="Kelimeyi yaz"
+            />
+            <Segments total={words.length} typed={idx} confirmed={confirmed} />
+          </>
+        )}
+
+        {phase === "finished" && (
+          <div className="result">
+            <span className="kicker">Bitiş · sıran</span>
+            {result ? (
+              <>
+                <div className="pos">{result.rank}</div>
+                <h1 className="headline">{result.blocks} blokta bitirdin</h1>
+                <p className="lede">Sıran zincirde kesinleşti; projektörde de görünüyor.</p>
+              </>
+            ) : (
+              <>
+                <h1 className="headline">Son kelimen zincire gidiyor</h1>
+                <Segments total={words.length} typed={idx} confirmed={confirmed} />
+              </>
+            )}
+            <div className="chequer" aria-hidden />
+          </div>
+        )}
+
+        {phase === "over" && (
+          <>
+            <span className="kicker">Süre doldu</span>
+            <h1 className="headline">
+              {confirmed}/{words.length} kelime zincirde
+            </h1>
+            <p className="lede">Sonraki tura hazır ol.</p>
+            <Segments total={words.length} typed={idx} confirmed={confirmed} />
+          </>
+        )}
+
+        {latency && (
+          <a className="receipt" href={explorerTx(latency.hash) || undefined} target="_blank" rel="noreferrer">
+            <span>
+              son kelime <b>{latency.secs.toFixed(2)} sn</b>'de blokta
             </span>
-            <span className="mono dim">{leftSecs} sn</span>
-          </div>
-          <div className={`target${shake ? " shake" : ""}`}>
-            <span className={ok ? "okp" : "badp"}>{target.slice(0, input.trim().length)}</span>
-            <span>{target.slice(input.trim().length)}</span>
-          </div>
-          <div className="next dim">{words.slice(idx + 1, idx + 4).join("  ")}</div>
-          <input
-            ref={inputRef}
-            className={`typein${ok ? "" : " wrong"}`}
-            value={input}
-            onChange={(e) => onType(e.target.value)}
-            autoCapitalize="none"
-            autoCorrect="off"
-            autoComplete="off"
-            spellCheck={false}
-            enterKeyHint="next"
-            inputMode="text"
-            placeholder="buraya yaz…"
-          />
-          <Bars typed={idx} confirmed={confirmed} total={words.length} />
-        </section>
-      )}
+            <span>
+              #{latency.block.toString()}
+              {latency.sync ? " · tek istek" : ""}
+            </span>
+          </a>
+        )}
+      </div>
 
-      {phase === "finished" && (
-        <div className="center">
-          {result ? (
-            <>
-              <div className="rank mono">{result.rank}.</div>
-              <h2>Bitirdin!</h2>
-              <p className="dim">
-                {result.blocks} blokta · sıra zincirde kesinleşti
-              </p>
-            </>
-          ) : (
-            <>
-              <h2>Bitti, son kelimen zincire gidiyor…</h2>
-              <Bars typed={idx} confirmed={confirmed} total={words.length} />
-            </>
-          )}
-        </div>
-      )}
-
-      {phase === "over" && (
-        <div className="center">
-          <h2>Süre doldu</h2>
-          <p className="dim">
-            {confirmed}/{words.length} kelime zincirde. Sonraki tura hazır ol!
-          </p>
-        </div>
-      )}
-
-      {latency && (
-        <a className="lat" href={explorerTx(latency.hash) || undefined} target="_blank" rel="noreferrer">
-          son kelime {latency.secs.toFixed(2)} sn'de blokta · #{latency.block.toString()}
-          {latency.sync ? " · tek istekte onay" : ""}
-        </a>
-      )}
       {err && (
-        <div className="toast err" onClick={() => setErr(null)}>
+        <div className="toast" role="alert" onClick={() => setErr(null)}>
           {err}
         </div>
       )}
-      <footer className="me">
-        <span className="mono">
-          {address.slice(0, 6)}…{address.slice(-4)}
-        </span>
-        <span className="mono">{balance === null ? "…" : Number(formatEther(balance)).toFixed(4)} MON</span>
-      </footer>
+      {footer}
     </Shell>
   );
 }
 
-function Bars({ typed, confirmed, total }: { typed: number; confirmed: number; total: number }) {
-  const t = total ? (typed / total) * 100 : 0;
-  const c = total ? (confirmed / total) * 100 : 0;
+function Segments({ total, typed, confirmed }: { total: number; typed: number; confirmed: number }) {
   return (
-    <div className="bars2">
-      <div className="lbl dim">
-        <span>yazdın {typed}</span>
-        <span>zincirde {confirmed}</span>
+    <div className="segs">
+      <div className="cells">
+        {Array.from({ length: total }, (_, i) => (
+          <span key={i} className={`cell${i < confirmed ? " conf" : i < typed ? " typed" : ""}`} />
+        ))}
       </div>
-      <div className="track">
-        <div className="typed" style={{ width: `${t}%` }} />
-        <div className="conf" style={{ width: `${c}%` }} />
+      <div className="legend">
+        <span>yazdın {typed}</span>
+        <span className="c">zincirde {confirmed}</span>
       </div>
     </div>
   );
 }
 
-function Shell({ round, label, children }: { round: number; label: string; children: React.ReactNode }) {
+function Shell({ status, children }: { status: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="phone">
-      <header className="vhead">
-        <span className="brand">
-          Blitz<span>Type</span>
+      <header className="ptop">
+        <span className="wordmark" lang="en">
+          BlitzType<span className="cur" />
         </span>
-        <span className="pill">{round ? `Tur ${round}` : "—"} · {label}</span>
+        {status}
       </header>
       {children}
     </div>
@@ -337,19 +375,15 @@ function Shell({ round, label, children }: { round: number; label: string; child
 
 export function Landing() {
   return (
-    <div className="phone">
-      <header className="vhead">
-        <span className="brand">
-          Blitz<span>Type</span>
-        </span>
-      </header>
-      <div className="center">
-        <h2>Kartındaki QR'ı okut</h2>
-        <p>Cüzdan ve gas hazır gelir. Tur başlayınca kelimeleri yaz; her doğru kelime bir Monad işlemi.</p>
-        <a className="link" href="#/screen">
-          Projektör ekranı →
+    <Shell status={<span className="onmonad" lang="en">on Monad</span>}>
+      <div className="pbody">
+        <span className="kicker">Oda boyu yazma yarışı</span>
+        <h1 className="headline">Kartındaki QR'ı okut</h1>
+        <p className="lede">Cüzdan ve gas hazır gelir. Tur başlayınca kelimeleri yaz; her doğru kelime bir Monad işlemi, sırayı zincir belirler.</p>
+        <a className="btn" href="#/screen" style={{ display: "grid", placeItems: "center", textDecoration: "none" }}>
+          Projektör ekranı
         </a>
       </div>
-    </div>
+    </Shell>
   );
 }

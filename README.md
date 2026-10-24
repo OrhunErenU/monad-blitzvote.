@@ -97,4 +97,4 @@ app/src/Race.tsx                    projector: lanes, words per block, podium
 - Passkey accounts instead of printed cards; sponsored gas
 - Team mode: sum of a table's words, aggregated on-chain
 
-Turkish event runbook: [`ETKINLIK.md`](ETKINLIK.md) · 90-second pitch: [`PITCH.md`](PITCH.md)
+Brand kit: [`DESIGN.md`](DESIGN.md) · Turkish event runbook: [`ETKINLIK.md`](ETKINLIK.md) · 90-second pitch: [`PITCH.md`](PITCH.md)
